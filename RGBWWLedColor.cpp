@@ -306,7 +306,7 @@ void RGBWWColorUtils::HSVtoRGBspektrum(const HSVCT& hsvk, RGBWCT& rgbwk) const {
     //gamma correction
     //val = RGBWW_dim_curve[hsvk.v];
     //sat = RGBWW_PWMMAXVAL - RGBWW_dim_curve[RGBWW_PWMMAXVAL-sat];
-
+    debug_i("HSVtoRGBspektruum called with h: %i, s:%i, v:%i, ct:%i", hue, sat, val, hsvk.ct);
     if (sat == 0) {
         // color is grayscale
         rgbwk.r = 0;
@@ -394,6 +394,7 @@ void RGBWWColorUtils::HSVtoRGBraw(const HSVCT& hsvk, RGBWCT& rgbwk) const {
     hue = hsvk.h;
     val = hsvk.v;
     sat = hsvk.s;
+
     //gamma correction
     //val = RGBWW_dim_curve[hsvk.v];
     //sat = RGBWW_PWMMAXVAL - RGBWW_dim_curve[RGBWW_PWMMAXVAL-sat];
