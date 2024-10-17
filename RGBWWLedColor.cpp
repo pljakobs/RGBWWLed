@@ -500,7 +500,7 @@ void RGBWWColorUtils::RGBtoHSV(const RGBWCT& rgbw, HSVCT& hsv) const {
     //TODO: needs implementation
 
 }
-;
+
 
 /*
  * Helper function to create the 6 sectors for the HUE wheel

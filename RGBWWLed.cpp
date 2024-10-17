@@ -11,6 +11,7 @@
 #include "RGBWWLedAnimation.h"
 #include "RGBWWLedAnimationQ.h"
 #include "RGBWWLedOutput.h"
+#include <pgmspace.h>
 
 /**************************************************************
  *                setup, init and settings
@@ -133,8 +134,8 @@ void RGBWWLed::setOutput(ChannelOutput& output) {
         colorutils.correctBrightness(output);
         _current_output = output;
         debug_d("R:%i | G:%i | B:%i | WW:%i | CW:%i", output.r, output.g, output.b, output.ww, output.cw);
-        _pwm_output->setOutput(RGBWW_dim_curve[output.r], RGBWW_dim_curve[output.g], RGBWW_dim_curve[output.b], RGBWW_dim_curve[output.ww],
-                RGBWW_dim_curve[output.cw]);
+        _pwm_output->setOutput(getDimCurveValue(output.r), getDimCurveValue(output.g), getDimCurveValue(output.b), getDimCurveValue(output.ww),
+                getDimCurveValue(output.cw));
     }
 }
 ;

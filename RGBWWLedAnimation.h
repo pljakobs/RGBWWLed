@@ -51,7 +51,7 @@ public:
      *
      * @param newspeed
      */
-    virtual void setSpeed(int newspeed) {
+    virtual void setSpeed(int /* newspeed */) {
     }
     ;
 
@@ -61,7 +61,7 @@ public:
      *
      * @param newbrightness
      */
-    virtual void setBrightness(int newbrightness) {
+    virtual void setBrightness(int /* newbrightness */) {
     }
     ;
 
