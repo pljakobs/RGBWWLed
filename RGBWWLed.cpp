@@ -82,7 +82,7 @@ bool RGBWWLed::show() {
         HSVCT c;
         getAnimChannelHsvColor(c);
 
-        debug_d("NEW: h:%d, s:%d, v:%d, ct: %d", c.h, c.s, c.v, c.ct);
+        //debug_i("NEW: h:%d, s:%d, v:%d, ct: %d", c.h, c.s, c.v, c.ct);
 
         this->setOutput(c);
 
@@ -93,9 +93,6 @@ bool RGBWWLed::show() {
 
         ChannelOutput o;
         getAnimChannelRawOutput(o);
-
-        debug_d("NEWRAW: r:%d, g:%d, b:%d, cw: %d, ww: %d", o.r, o.g, o.b, o.cw, o.ww);
-
         this->setOutput(o);
         break;
     }
@@ -133,12 +130,10 @@ void RGBWWLed::setOutput(ChannelOutput& output) {
     if (_pwm_output != NULL) {
         colorutils.correctBrightness(output);
         _current_output = output;
-        debug_d("R:%i | G:%i | B:%i | WW:%i | CW:%i", output.r, output.g, output.b, output.ww, output.cw);
         _pwm_output->setOutput(getDimCurveValue(output.r), getDimCurveValue(output.g), getDimCurveValue(output.b), getDimCurveValue(output.ww),
                 getDimCurveValue(output.cw));
     }
 }
-;
 
 void RGBWWLed::setOutputRaw(int& red, int& green, int& blue, int& wwhite, int& cwhite) {
     if (_pwm_output != NULL) {

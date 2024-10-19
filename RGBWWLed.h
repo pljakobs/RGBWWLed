@@ -266,7 +266,7 @@ public:
     #if RGBWW_PWMRESOLUTION == 256
     // use bytes
         int getDimCurveValue(int val) {
-            if (val < 0||val>2=^RGBWW_CALC_DEPTH)
+            if (val < 0||val>=(pow(2,RGBWW_CALC_DEPTH)))
                 return 0;
             return pgm_read_byte(&RGBWW_dim_curve[val]);
         }
@@ -274,9 +274,9 @@ public:
     #if RGBWW_PWMRESOLUTION == 65536
         // use words
         int getDimCurveValue(int val) {
-                if (val < 0||val>=2^RGBWW_CALC_DEPTH)
+            if (val < 0 || val>=(pow(2,RGBWW_CALC_DEPTH)))
                 return 0;
-                return pgm_read_word(&RGBWW_dim_curve[val]);
+            return pgm_read_word(&RGBWW_dim_curve[val]);
         }
     #endif
 private:

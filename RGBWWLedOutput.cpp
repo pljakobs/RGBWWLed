@@ -17,12 +17,15 @@
 
 PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, uint16_t freq /* = 200 */) {
     uint8_t pins[] = { redPin, greenPin, bluePin, wwPin, cwPin };
+    debug_i("starting PWMoutput");
     _pPwm = new HardwarePWM(pins, sizeof(pins));
 
     // this period calculation is meant for SDK-PWM or for newPcm when SDK_PWM_PERIOD_COMPAT_MODE is ON
     const int period = int(float(1000) / (float(freq) / float(1000)));
+    debug_i("PWM period: %i", period);
     _pPwm->setPeriod(period);
     _dutyRangeFactor = _pPwm->getMaxDuty() / 65535.0f; // 65535 is the maximum what the linear curve will deliver
+    debug_i("max duty %i", _pPwm->getMaxDuty());
 }
 
 PWMOutput::~PWMOutput() {
@@ -70,7 +73,6 @@ int PWMOutput::getColdWhite() {
 }
 
 void PWMOutput::setOutput(int red, int green, int blue, int warmwhite, int coldwhite) {
-    debug_d("R:%i | G:%i | B:%i | WW:%i | CW:%i", red, green, blue, warmwhite, coldwhite);
     setRed(red, false);
     setGreen(green, false);
     setBlue(blue, false);
