@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../SmingCore/SmingCore.h"
+#include <SmingCore.h>
 #include "RGBWWconst.h"
 
 
