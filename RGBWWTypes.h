@@ -1,22 +1,21 @@
 #pragma once
 
-#include <SmingCore.h>
 #include "RGBWWconst.h"
-
 
 struct RampTimeOrSpeed {
     enum class Type {
-        Speed,
-        Time
+        Speed, Time
     };
 
     RampTimeOrSpeed() {
     }
 
-    RampTimeOrSpeed(double v) : value(v) {
+    RampTimeOrSpeed(double v) :
+            value(v) {
     }
 
-    RampTimeOrSpeed(double v, Type t) : value(v), type(t) {
+    RampTimeOrSpeed(double v, Type t) :
+            value(v), type(t) {
     }
 
     double value = 0.0; // Speed: percent/degree per second
@@ -25,37 +24,34 @@ struct RampTimeOrSpeed {
 
 class AbsOrRelValue {
 public:
-	enum class Type {
-		Raw,   // 0 - 1023
-		Hue,   // -> 0 - 360
-		Percent, // 0 - 100
-		Ct // no check
-	};
+    enum class Type {
+        Raw,   // 0 - 1023
+        Hue,   // -> 0 - 360
+        Percent, // 0 - 100
+        Ct // no check
+    };
 
-	enum class Mode {
-		Absolute,
-		Relative,
-	};
+    enum class Mode {
+        Absolute, Relative,
+    };
 
-	AbsOrRelValue() {
-	}
+    AbsOrRelValue() {
+    }
 
-	AbsOrRelValue(const char* value, Type type = Type::Percent) : _type(type){
-		String str;
-		str.setString(value);
-		float val;
-		if (str.startsWith("+") || str.startsWith("-")) {
-			_mode = Mode::Relative;
-			val = str.substring(1).toFloat();
-			if (str.startsWith("-"))
-			    val *= -1;
-		}
-		else {
-			_mode = Mode::Absolute;
-			val = str.toFloat();
-		}
-        setValueByType(val);
-	}
+    AbsOrRelValue(String value, Type type = Type::Percent) :
+            _type(type) {
+        float fval;
+        if (value.startsWith("+") || value.startsWith("-")) {
+            _mode = Mode::Relative;
+            fval = value.substring(1).toFloat();
+            if (value.startsWith("-"))
+                fval *= -1;
+        } else {
+            _mode = Mode::Absolute;
+            fval = value.toFloat();
+        }
+        setValueByType(fval);
+    }
 
     AbsOrRelValue(const AbsOrRelValue& o) {
         _value = o.getValue();
@@ -73,17 +69,18 @@ public:
     /**
      * Accepts CHANNEL output range value
      */
-    AbsOrRelValue(int value, Mode mode) : _mode(mode) {
+    AbsOrRelValue(int value, Mode mode) :
+            _mode(mode) {
         _value = value;
     }
 
     /**
      * Accepts INPUT range, will be converted to output range value
      */
-    AbsOrRelValue(int value, Type type) : _type(type) {
-       setValueByType(value);
+    AbsOrRelValue(int value, Type type) :
+            _type(type) {
+        setValueByType(value);
     }
-
 
     bool operator==(const AbsOrRelValue& obj) const {
         return (_mode == obj.getMode()) && (this->_value == obj.getValue());
@@ -97,31 +94,34 @@ public:
         return _type;
     }
 
-	Mode getMode() const {
-		return _mode;
-	}
+    Mode getMode() const {
+        return _mode;
+    }
 
-	int getValue() const {
-		return _value;
-	}
+    int getValue() const {
+        return _value;
+    }
 
-	int getFinalValue(int val) const {
-		switch(_mode) {
-		case Mode::Relative:
-			return fixRangeLimits(_value + val);
-		case Mode::Absolute:
-			return _value;
-		}
-	}
+    int getFinalValue(int val) const {
+        switch (_mode) {
+        case Mode::Relative:
+            return fixRangeLimits(_value + val);
+        case Mode::Absolute:
+        default:
+            return _value;
+        }
+    }
 
 private:
-	void setValueByType(float value) {
-        switch(_type) {
+    void setValueByType(float value) {
+        switch (_type) {
         case Type::Hue:
-        	value = (value / 360.0) * RGBWW_CALC_HUEWHEELMAX;
+            value = (value / 360.0) * RGBWW_CALC_HUEWHEELMAX;
             break;
         case Type::Percent:
-        	value = (value / 100.0) * RGBWW_CALC_MAXVAL;
+            value = (value / 100.0) * RGBWW_CALC_MAXVAL;
+            break;
+        default:
             break;
         }
 
@@ -129,10 +129,10 @@ private:
 
         if (_mode != Mode::Relative)
             _value = fixRangeLimits(_value);
-	}
+    }
 
-	int fixRangeLimits(int val) const {
-	    switch(_type) {
+    int fixRangeLimits(int val) const {
+        switch (_type) {
         case Type::Raw:
             val = constrain(val, 0, 1023);
             break;
@@ -145,32 +145,37 @@ private:
         case Type::Percent:
             val = constrain(val, 0, RGBWW_CALC_MAXVAL);
             break;
+        default:
+            break;
         }
-	    return val;
-	}
+        return val;
+    }
 
-	AbsOrRelValue::Mode _mode = Mode::Absolute;
-	Type _type = Type::Percent;
-	int _value = 0;
+    AbsOrRelValue::Mode _mode = Mode::Absolute;
+    Type _type = Type::Percent;
+    int _value = 0;
 };
 
-template< typename T >
+template<typename T>
 class Optional {
 public:
-	Optional() : _hasValue(false) {
-	}
+    Optional() :
+            _hasValue(false) {
+    }
 
-	Optional<T>(T value) : _value(value), _hasValue(true) {
-	}
+    Optional<T>(T value) :
+            _value(value), _hasValue(true) {
+    }
 
-	T& operator=(const T& obj) {
-		_value = obj;
-		_hasValue = true;
-	}
+    Optional& operator=(const T& obj) {
+        _value = obj;
+        _hasValue = true;
+        return *this;
+    }
 
-	const T& getValue() const {
-		return _value;
-	}
+    const T& getValue() const {
+        return _value;
+    }
 
     bool operator==(const Optional<T>& obj) const {
         return (this->hasValue() == obj.hasValue()) && (this->getValue() == obj.getValue());
@@ -193,34 +198,27 @@ public:
     }
 
     operator const T&() const {
-    	return _value;
+        return _value;
     }
 
-	void clear() {
-		_hasValue;
-	}
+    void clear() {
+        _hasValue;
+    }
 
-	bool hasValue() const {
-		return _hasValue;
-	}
+    bool hasValue() const {
+        return _hasValue;
+    }
 private:
-	T _value;
-	bool _hasValue = false;
+    T _value;
+    bool _hasValue = false;
 };
 
 enum class CtrlChannel {
-	None,
+    None,
 
-    Hue,
-    Sat,
-    Val,
-    ColorTemp,
+    Hue, Sat, Val, ColorTemp,
 
-    Red,
-    Green,
-    Blue,
-    ColdWhite,
-    WarmWhite,
+    Red, Green, Blue, ColdWhite, WarmWhite,
 };
 
 inline String ctrlChannelToString(CtrlChannel ch) {
@@ -245,8 +243,7 @@ struct BresenhamValues {
 };
 
 enum class QueuePolicy {
-    Invalid,
-    FrontReset, // queue to front and let the original anim run from the beginning afterwards
+    Invalid, FrontReset, // queue to front and let the original anim run from the beginning afterwards
     Front, // queue to front and the current animation will continue where it was interrupted
     Back,
     Single,

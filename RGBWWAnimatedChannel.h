@@ -14,7 +14,6 @@ class RGBWWLed;
 class RGBWWLedAnimation;
 class RGBWWLedAnimationQ;
 
-
 class RGBWWAnimatedChannel {
 public:
     RGBWWAnimatedChannel(RGBWWLed* rgbled);
@@ -34,7 +33,6 @@ public:
      */
     bool isAnimationActive();
 
-
     /**
      * Check if the AnimationQueue is full
      *
@@ -49,13 +47,11 @@ public:
      */
     void skipAnimation();
 
-
     /**
      * Cancel all animations in the queue
      *
      */
     void clearAnimationQueue();
-
 
     /**
      * Change the speed of the current running animation
@@ -63,7 +59,6 @@ public:
      * @param speed
      */
     void setAnimationSpeed(int speed);
-
 
     /**
      * Change the brightness of the current animation
@@ -82,17 +77,17 @@ public:
 
 private:
     RGBWWLed* _rgbled;
-    int     _value = 0;
-    bool    _cancelAnimation = false;
-    bool    _clearAnimationQueue = false;
-    bool    _isAnimationActive = false;
-    bool    _isAnimationPaused = false;
+    int _value = 0;
+    bool _cancelAnimation = false;
+    bool _clearAnimationQueue = false;
+    bool _isAnimationActive = false;
+    bool _isAnimationPaused = false;
 
     RGBWWLedAnimation* _currentAnimation = nullptr;
     RGBWWLedAnimationQ* _animationQ = nullptr;
 
     //helpers
-    bool notifyAnimationFinished(bool requeued);
+    void notifyAnimationFinished(bool requeued);
     void cleanupCurrentAnimation();
     void cleanupAnimationQ();
     void requeueCurrentAnimation();
