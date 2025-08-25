@@ -9,6 +9,10 @@
 #define RGBWWLedOutput_h
 #include "RGBWWLed.h"
 
+#if ARCH_ESP32
+    #include "../Esp32HardwarePwm/src/include/Esp32HardwarePwm.h"
+#endif
+
 #ifdef RGBWW_USE_ESP_HWPWM
 
 /*
@@ -41,8 +45,11 @@ public:
 private:
     int parseDuty(int duty);
     float _dutyRangeFactor = 0.0f;
+    #if ARCH_ESP32
+    Esp32HardwarePwm* _pPwm;
+    #else
     HardwarePWM* _pPwm;
-
+    #endif
 };
 
 #else

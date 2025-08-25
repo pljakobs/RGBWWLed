@@ -16,16 +16,34 @@
  */
 
 PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, uint16_t freq /* = 200 */) {
-    uint8_t pins[] = { redPin, greenPin, bluePin, wwPin, cwPin };
     debug_i("starting PWMoutput");
+    #if ARCH_ESP32
+    std::vector<uint8_t> pins = { redPin, greenPin, bluePin, wwPin, cwPin };
+
+    Esp32HwPwmConfig pwmConfig;
+    pwmConfig.channelStart = LEDC_CHANNEL_0;
+    pwmConfig.spreadSpectrum.mode = SpreadSpectrumMode::ON;
+    pwmConfig.spreadSpectrum.WidthPercent = 15; // 15% modulation
+    pwmConfig.spreadSpectrum.Subsampling = 1;
+    pwmConfig.spreadSpectrum.StepsizeHz = 5;
+    pwmConfig.phaseShift.mode = PhaseShiftMode::AUTO;
+    pwmConfig.timer.timer_num = LEDC_TIMER_0;
+    pwmConfig.timer.frequency= 4000;
+
+    _pPwm = new Esp32HardwarePwm(pins, pwmConfig);
+    #else
+    uint8_t pins[] = { redPin, greenPin, bluePin, wwPin, cwPin };
     _pPwm = new HardwarePWM(pins, sizeof(pins));
 
     // this period calculation is meant for SDK-PWM or for newPcm when SDK_PWM_PERIOD_COMPAT_MODE is ON
     const int period = int(float(1000) / (float(freq) / float(1000)));
     debug_i("PWM period: %i", period);
     _pPwm->setPeriod(period);
+    #endif
     _dutyRangeFactor = _pPwm->getMaxDuty() / 65535.0f; // 65535 is the maximum what the linear curve will deliver
     debug_i("max duty %i", _pPwm->getMaxDuty());
+    
+
 }
 
 PWMOutput::~PWMOutput() {
@@ -80,21 +98,18 @@ void PWMOutput::setOutput(int red, int green, int blue, int warmwhite, int coldw
     setColdWhite(coldwhite, false);
 
     _pPwm->update();
-
 }
-
 int PWMOutput::getChannel(int chan) {
     return _pPwm->getDutyChan(chan);
 }
 
 void PWMOutput::setChannel(int chan, int duty, bool update /* = true */) {
-    if (unsigned(duty) == _pPwm->getDutyChan(chan))
-        return;
-
     const uint32 scaledDuty = uint32(roundf(duty * _dutyRangeFactor));
+    //if (unsigned(scaledDuty) == _pPwm->getDutyChan(chan))
+    //    return;
+    //debug_i("setChannel: chan=%d, duty=%d (scaled %d), update=%d", chan, duty, scaledDuty, update);
     _pPwm->setDutyChan(chan, scaledDuty, update);
 }
-
 #else
 
 /*

@@ -163,7 +163,7 @@ public:
             _hasValue(false) {
     }
 
-    Optional<T>(T value) :
+    Optional(T value) :
             _value(value), _hasValue(true) {
     }
 
@@ -177,7 +177,7 @@ public:
         return _value;
     }
 
-    bool operator==(const Optional<T>& obj) const {
+    bool operator==(const Optional& obj) const {
         return (this->hasValue() == obj.hasValue()) && (this->getValue() == obj.getValue());
     }
 
