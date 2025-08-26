@@ -25,7 +25,6 @@ PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t 
     pwmConfig.spreadSpectrum.mode = SpreadSpectrumMode::ON;
     pwmConfig.spreadSpectrum.WidthPercent = 15; // 15% modulation
     pwmConfig.spreadSpectrum.Subsampling = 1;
-    pwmConfig.spreadSpectrum.StepsizeHz = 5;
     pwmConfig.phaseShift.mode = PhaseShiftMode::AUTO;
     pwmConfig.timer.timer_num = LEDC_TIMER_0;
     pwmConfig.timer.frequency= 4000;
