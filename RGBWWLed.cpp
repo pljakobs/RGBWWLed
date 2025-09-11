@@ -12,6 +12,9 @@
 #include "RGBWWLedAnimationQ.h"
 #include "RGBWWLedOutput.h"
 #include <pgmspace.h>
+#ifdef ARCH_ESP32
+    #include "../Esp32HardwarePwm/src/include/Esp32HardwarePwm.h"
+#endif
 
 /**************************************************************
  *                setup, init and settings
@@ -39,10 +42,23 @@ RGBWWLed::~RGBWWLed() {
     delete _pwm_output;
     _pwm_output = nullptr;
 }
+#ifdef ARCH_ESP32
+Esp32HwPwmConfig config;
+/* ToDo: surface pwm config to application
+{
+    AppConfig::Root::Hardware hardware(*app.config);
+    config.timer.frequency = hardware.pwm_frequency;
+  */  
 
-void RGBWWLed::init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN, int pwmFrequency /* =200 */) {
+
+void RGBWWLed::init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN,  const Esp32HwPwmConfig& config) {
+    _pwm_output = new PWMOutput(redPIN, greenPIN, bluePIN, wwPIN, cwPIN, config);
+}
+#else
+    void RGBWWLed::init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN, int pwmFrequency /* =200 */) {
     _pwm_output = new PWMOutput(redPIN, greenPIN, bluePIN, wwPIN, cwPIN, pwmFrequency);
 }
+#endif
 
 void RGBWWLed::getAnimChannelHsvColor(HSVCT& c) {
     c.hue = _animChannelsHsv[CtrlChannel::Hue]->getValue();

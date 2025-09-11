@@ -24,7 +24,12 @@
 class PWMOutput {
 
 public:
+#ifdef ARCH_ESP32
+    PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, uint16_t freq = 2000);
+    PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, const Esp32HwPwmConfig& config);
+#else 
     PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, uint16_t freq = 200);
+#endif
     ~PWMOutput();
 
     void setRed(int value, bool update = true);
