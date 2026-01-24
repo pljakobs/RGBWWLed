@@ -38,12 +38,10 @@
 #include <Arduino.h>
 #include <Wiring/WHashMap.h>
 #include "RGBWWTypes.h"
-
 #include "RGBWWconst.h"
 #include "RGBWWLedColor.h"
 #include "RGBWWLedAnimation.h"
 #include "RGBWWLedOutput.h"
-#include "RGBWWTypes.h"
 
 class RGBWWLedAnimation;
 class RGBWWLedAnimationQ;

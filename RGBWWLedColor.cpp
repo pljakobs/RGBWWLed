@@ -38,6 +38,7 @@ RGBWW_HSVMODEL RGBWWColorUtils::getHSVmodel() const {
 }
 
 void RGBWWColorUtils::setWhiteTemperature(int WarmWhite, int ColdWhite) {
+    debug_i("RGBWWColorUtils::setWhiteTemperature");
     _WarmWhiteKelvin = WarmWhite;
     _ColdWhiteKelvin = ColdWhite;
 }
@@ -214,6 +215,8 @@ void RGBWWColorUtils::HSVtoRGB(const HSVCT& hsvk, RGBWCT& rgbwk, RGBWW_HSVMODEL 
 void RGBWWColorUtils::HSVtoRGBrainbow(const HSVCT& hsvk, RGBWCT& rgbwk) const {
     int val, hue, sat, r, g, b, chroma, m, sector;
 
+    rgbwk.ct = hsvk.ct; //pass color temperature transparently
+
     hue = hsvk.h;
     val = hsvk.v;
     sat = hsvk.s;
@@ -300,13 +303,16 @@ void RGBWWColorUtils::HSVtoRGBrainbow(const HSVCT& hsvk, RGBWCT& rgbwk) const {
 void RGBWWColorUtils::HSVtoRGBspektrum(const HSVCT& hsvk, RGBWCT& rgbwk) const {
     int val, hue, sat, r, g, b, fract, chroma, half_chroma, m;
 
+    rgbwk.ct=hsvk.ct; //pass color temperature transparently
+
     hue = hsvk.h;
     val = hsvk.v;
     sat = hsvk.s;
     //gamma correction
+    
     //val = RGBWW_dim_curve[hsvk.v];
     //sat = RGBWW_PWMMAXVAL - RGBWW_dim_curve[RGBWW_PWMMAXVAL-sat];
-    debug_i("HSVtoRGBspektruum called with h: %i, s:%i, v:%i, ct:%i", hue, sat, val, hsvk.ct);
+    
     if (sat == 0) {
         // color is grayscale
         rgbwk.r = 0;
@@ -390,6 +396,8 @@ void RGBWWColorUtils::HSVtoRGBspektrum(const HSVCT& hsvk, RGBWCT& rgbwk) const {
 
 void RGBWWColorUtils::HSVtoRGBraw(const HSVCT& hsvk, RGBWCT& rgbwk) const {
     int val, hue, sat, r, g, b, fract, chroma, m;
+
+    rgbwk.ct = hsvk.ct; //pass color temperature transparently
 
     hue = hsvk.h;
     val = hsvk.v;

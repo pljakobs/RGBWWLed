@@ -130,6 +130,7 @@ const HSVCT& RGBWWLed::getCurrentColor() const {
 }
 
 void RGBWWLed::setOutput(HSVCT& outputcolor) {
+    //debug_i("RGBWWLed::setOuput (HSV) ct:%i\n",outputcolor.ct);
     RGBWCT rgbwk;
     _current_color = outputcolor;
     colorutils.HSVtoRGB(outputcolor, rgbwk);
@@ -137,15 +138,18 @@ void RGBWWLed::setOutput(HSVCT& outputcolor) {
 }
 
 void RGBWWLed::setOutput(RGBWCT& outputcolor) {
+    //debug_i("RGBWWLed::setOuput (RGB) ct:%i\n",outputcolor.ct);
     ChannelOutput output;
     colorutils.whiteBalance(outputcolor, output);
     setOutput(output);
 }
 
 void RGBWWLed::setOutput(ChannelOutput& output) {
+
     if (_pwm_output != NULL) {
         colorutils.correctBrightness(output);
         _current_output = output;
+        //debug_i("RGBWWLed::setOutput\n  r : %i\n g : %i\n b : %i\n ww: %i\n cw: %i\n\n", output.r, output.g, output.b, output.ww, output.cw);
         _pwm_output->setOutput(getDimCurveValue(output.r), getDimCurveValue(output.g), getDimCurveValue(output.b), getDimCurveValue(output.ww),
                 getDimCurveValue(output.cw));
     }
@@ -187,16 +191,18 @@ void RGBWWLed::blink(const ChannelList& channels, int time, QueuePolicy queuePol
 //// setHSV ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool RGBWWLed::setHSV(const RequestHSVCT& color, QueuePolicy queuePolicy, bool requeue, const String& name) {
+    debug_i("RGBWWLed::setHSV ct: %f\n",color.ct.hasValue() ? (float)color.ct.getValue() : -1.0f ); 
     return setHSV(color, 0, queuePolicy, requeue, name);
 }
 
 bool RGBWWLed::setHSV(const RequestHSVCT& color, int time, QueuePolicy queuePolicy, bool requeue, const String& name) {
     _mode = ColorMode::Hsv;
+    debug_i("RGBWWLed::setHSV ct: %f\n",color.ct.hasValue() ? (float)color.ct.getValue() : -1.0f ); 
 
     bool result = true;
-    result &= pushAnimSetAndStay(color.h, time, queuePolicy, CtrlChannel::Hue, requeue, name);
-    result &= pushAnimSetAndStay(color.s, time, queuePolicy, CtrlChannel::Sat, requeue, name);
-    result &= pushAnimSetAndStay(color.v, time, queuePolicy, CtrlChannel::Val, requeue, name);
+    result &= pushAnimSetAndStay(color.h,  time, queuePolicy, CtrlChannel::Hue, requeue, name);
+    result &= pushAnimSetAndStay(color.s,  time, queuePolicy, CtrlChannel::Sat, requeue, name);
+    result &= pushAnimSetAndStay(color.v,  time, queuePolicy, CtrlChannel::Val, requeue, name);
     result &= pushAnimSetAndStay(color.ct, time, queuePolicy, CtrlChannel::ColorTemp, requeue, name);
     return result;
 }
@@ -216,14 +222,14 @@ bool RGBWWLed::fadeHSV(const RequestHSVCT& color, const RampTimeOrSpeed& ramp, i
 
     bool result = true;
     if (ramp.type == RampTimeOrSpeed::Type::Time && (ramp.value == 0.0 || ramp.value < RGBWW_MINTIMEDIFF)) {
-        result &= pushAnimSetAndStay(color.h, 0, queuePolicy, CtrlChannel::Hue, requeue, name);
-        result &= pushAnimSetAndStay(color.s, 0, queuePolicy, CtrlChannel::Sat, requeue, name);
-        result &= pushAnimSetAndStay(color.v, 0, queuePolicy, CtrlChannel::Val, requeue, name);
+        result &= pushAnimSetAndStay(color.h,  0, queuePolicy, CtrlChannel::Hue,       requeue, name);
+        result &= pushAnimSetAndStay(color.s,  0, queuePolicy, CtrlChannel::Sat,       requeue, name);
+        result &= pushAnimSetAndStay(color.v,  0, queuePolicy, CtrlChannel::Val,       requeue, name);
         result &= pushAnimSetAndStay(color.ct, 0, queuePolicy, CtrlChannel::ColorTemp, requeue, name);
     } else {
         result &= pushAnimTransitionCircularHue(color.h, ramp, direction, queuePolicy, CtrlChannel::Hue, requeue, name);
-        result &= pushAnimTransition(color.s, ramp, queuePolicy, CtrlChannel::Sat, requeue, name);
-        result &= pushAnimTransition(color.v, ramp, queuePolicy, CtrlChannel::Val, requeue, name);
+        result &= pushAnimTransition(color.s,  ramp, queuePolicy, CtrlChannel::Sat,       requeue, name);
+        result &= pushAnimTransition(color.v,  ramp, queuePolicy, CtrlChannel::Val,       requeue, name);
         result &= pushAnimTransition(color.ct, ramp, queuePolicy, CtrlChannel::ColorTemp, requeue, name);
     }
     return result;
@@ -235,14 +241,14 @@ bool RGBWWLed::fadeHSV(const RequestHSVCT& colorFrom, const RequestHSVCT& color,
 
     bool result = true;
     if (ramp.type == RampTimeOrSpeed::Type::Time && (ramp.value == 0.0 || ramp.value < RGBWW_MINTIMEDIFF)) {
-        result &= pushAnimSetAndStay(color.h, 0, queuePolicy, CtrlChannel::Hue, requeue, name);
-        result &= pushAnimSetAndStay(color.s, 0, queuePolicy, CtrlChannel::Sat, requeue, name);
-        result &= pushAnimSetAndStay(color.v, 0, queuePolicy, CtrlChannel::Val, requeue, name);
+        result &= pushAnimSetAndStay(color.h,  0, queuePolicy, CtrlChannel::Hue,       requeue, name);
+        result &= pushAnimSetAndStay(color.s,  0, queuePolicy, CtrlChannel::Sat,       requeue, name);
+        result &= pushAnimSetAndStay(color.v,  0, queuePolicy, CtrlChannel::Val,       requeue, name);
         result &= pushAnimSetAndStay(color.ct, 0, queuePolicy, CtrlChannel::ColorTemp, requeue, name);
     } else {
         result &= pushAnimTransitionCircularHue(colorFrom.h, color.h, ramp, direction, queuePolicy, CtrlChannel::Hue, requeue, name);
-        result &= pushAnimTransition(colorFrom.s, color.s, ramp, queuePolicy, CtrlChannel::Sat, requeue, name);
-        result &= pushAnimTransition(colorFrom.v, color.v, ramp, queuePolicy, CtrlChannel::Val, requeue, name);
+        result &= pushAnimTransition(colorFrom.s,  color.s,  ramp, queuePolicy, CtrlChannel::Sat,       requeue, name);
+        result &= pushAnimTransition(colorFrom.v,  color.v,  ramp, queuePolicy, CtrlChannel::Val,       requeue, name);
         result &= pushAnimTransition(colorFrom.ct, color.ct, ramp, queuePolicy, CtrlChannel::ColorTemp, requeue, name);
     }
     return result;
@@ -258,9 +264,9 @@ bool RGBWWLed::setRAW(const RequestChannelOutput& output, int time, QueuePolicy 
     _mode = ColorMode::Raw;
 
     bool result = true;
-    result &= pushAnimSetAndStay(output.r, time, queuePolicy, CtrlChannel::Red, requeue, name);
-    result &= pushAnimSetAndStay(output.g, time, queuePolicy, CtrlChannel::Green, requeue, name);
-    result &= pushAnimSetAndStay(output.b, time, queuePolicy, CtrlChannel::Blue, requeue, name);
+    result &= pushAnimSetAndStay(output.r,  time, queuePolicy, CtrlChannel::Red,       requeue, name);
+    result &= pushAnimSetAndStay(output.g,  time, queuePolicy, CtrlChannel::Green,     requeue, name);
+    result &= pushAnimSetAndStay(output.b,  time, queuePolicy, CtrlChannel::Blue,      requeue, name);
     result &= pushAnimSetAndStay(output.cw, time, queuePolicy, CtrlChannel::ColdWhite, requeue, name);
     result &= pushAnimSetAndStay(output.ww, time, queuePolicy, CtrlChannel::WarmWhite, requeue, name);
     return result;
@@ -273,15 +279,15 @@ bool RGBWWLed::fadeRAW(const RequestChannelOutput& output, const RampTimeOrSpeed
 
     bool result = true;
     if (ramp.type == RampTimeOrSpeed::Type::Time && (ramp.value == 0.0 || ramp.value < RGBWW_MINTIMEDIFF)) {
-        result &= pushAnimSetAndStay(output.r, 0, queuePolicy, CtrlChannel::Red, requeue, name);
-        result &= pushAnimSetAndStay(output.g, 0, queuePolicy, CtrlChannel::Green, requeue, name);
-        result &= pushAnimSetAndStay(output.b, 0, queuePolicy, CtrlChannel::Blue, requeue, name);
+        result &= pushAnimSetAndStay(output.r,  0, queuePolicy, CtrlChannel::Red,       requeue, name);
+        result &= pushAnimSetAndStay(output.g,  0, queuePolicy, CtrlChannel::Green,     requeue, name);
+        result &= pushAnimSetAndStay(output.b,  0, queuePolicy, CtrlChannel::Blue,      requeue, name);
         result &= pushAnimSetAndStay(output.ww, 0, queuePolicy, CtrlChannel::WarmWhite, requeue, name);
         result &= pushAnimSetAndStay(output.cw, 0, queuePolicy, CtrlChannel::ColdWhite, requeue, name);
     } else {
-        result &= pushAnimTransition(output.r, ramp, queuePolicy, CtrlChannel::Red, requeue, name);
-        result &= pushAnimTransition(output.g, ramp, queuePolicy, CtrlChannel::Green, requeue, name);
-        result &= pushAnimTransition(output.b, ramp, queuePolicy, CtrlChannel::Blue, requeue, name);
+        result &= pushAnimTransition(output.r,  ramp, queuePolicy, CtrlChannel::Red,       requeue, name);
+        result &= pushAnimTransition(output.g,  ramp, queuePolicy, CtrlChannel::Green,     requeue, name);
+        result &= pushAnimTransition(output.b,  ramp, queuePolicy, CtrlChannel::Blue,      requeue, name);
         result &= pushAnimTransition(output.ww, ramp, queuePolicy, CtrlChannel::WarmWhite, requeue, name);
         result &= pushAnimTransition(output.cw, ramp, queuePolicy, CtrlChannel::ColdWhite, requeue, name);
     }
@@ -294,15 +300,15 @@ bool RGBWWLed::fadeRAW(const RequestChannelOutput& output_from, const RequestCha
 
     bool result = true;
     if (ramp.type == RampTimeOrSpeed::Type::Time && (ramp.value == 0.0 || ramp.value < RGBWW_MINTIMEDIFF)) {
-        result &= pushAnimSetAndStay(output.r, 0, queuePolicy, CtrlChannel::Red, requeue, name);
-        result &= pushAnimSetAndStay(output.g, 0, queuePolicy, CtrlChannel::Green, requeue, name);
-        result &= pushAnimSetAndStay(output.b, 0, queuePolicy, CtrlChannel::Blue, requeue, name);
+        result &= pushAnimSetAndStay(output.r,  0, queuePolicy, CtrlChannel::Red,       requeue, name);
+        result &= pushAnimSetAndStay(output.g,  0, queuePolicy, CtrlChannel::Green,     requeue, name);
+        result &= pushAnimSetAndStay(output.b,  0, queuePolicy, CtrlChannel::Blue,      requeue, name);
         result &= pushAnimSetAndStay(output.ww, 0, queuePolicy, CtrlChannel::WarmWhite, requeue, name);
         result &= pushAnimSetAndStay(output.cw, 0, queuePolicy, CtrlChannel::ColdWhite, requeue, name);
     } else {
-        result &= pushAnimTransition(output_from.r, output.r, ramp, queuePolicy, CtrlChannel::Red, requeue, name);
-        result &= pushAnimTransition(output_from.g, output.g, ramp, queuePolicy, CtrlChannel::Green, requeue, name);
-        result &= pushAnimTransition(output_from.b, output.b, ramp, queuePolicy, CtrlChannel::Blue, requeue, name);
+        result &= pushAnimTransition(output_from.r,  output.r,  ramp, queuePolicy, CtrlChannel::Red,       requeue, name);
+        result &= pushAnimTransition(output_from.g,  output.g,  ramp, queuePolicy, CtrlChannel::Green,     requeue, name);
+        result &= pushAnimTransition(output_from.b,  output.b,  ramp, queuePolicy, CtrlChannel::Blue,      requeue, name);
         result &= pushAnimTransition(output_from.ww, output.ww, ramp, queuePolicy, CtrlChannel::WarmWhite, requeue, name);
         result &= pushAnimTransition(output_from.cw, output.cw, ramp, queuePolicy, CtrlChannel::ColdWhite, requeue, name);
     }
