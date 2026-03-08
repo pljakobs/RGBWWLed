@@ -88,6 +88,12 @@ private:
     RGBWWLedAnimationQ* _animationQ = nullptr;
     int _pwmChannelIndex = -1;
     bool _hwFadeActive = false;
+    int _fadeTarget = 0;
+    int _fadeStartDuty = 0;
+    int _fadeStepsTotal = 0;
+    int _fadeStepsDone = 0;
+    uint32_t _fadeTotalMs = 0;
+    static constexpr uint32_t FADE_STEP_MS = 500;
 
     //helpers
     void notifyAnimationFinished(bool requeued);

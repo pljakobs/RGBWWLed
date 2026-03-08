@@ -89,15 +89,28 @@ bool RGBWWAnimatedChannel::process() {
     if (_hwFadeActive) {
         PWMOutput* pwm = _rgbled->getPwmOutput();
         if (pwm == nullptr || !pwm->isFadingChannel(_pwmChannelIndex)) {
-            _hwFadeActive = false;
-            _value = static_cast<AnimTransition*>(_currentAnimation)->getFinalVal();
-            if (_currentAnimation->shouldRequeue()) {
-                notifyAnimationFinished(true);
-                requeueCurrentAnimation();
+            _fadeStepsDone++;
+            if (_fadeStepsDone >= _fadeStepsTotal) {
+                // all steps complete
+                _hwFadeActive = false;
+                _value = _fadeTarget;
+                if (_currentAnimation->shouldRequeue()) {
+                    notifyAnimationFinished(true);
+                    requeueCurrentAnimation();
+                } else {
+                    cleanupCurrentAnimation();
+                }
+                return true;
             } else {
-                cleanupCurrentAnimation();
+                // start next step — linear interpolation toward _fadeTarget
+                int nextDuty = _fadeStartDuty +
+                    (int)(((long long)(_fadeTarget - _fadeStartDuty)) * (_fadeStepsDone + 1) / _fadeStepsTotal);
+                bool isLastStep = (_fadeStepsDone + 1 == _fadeStepsTotal);
+                uint32_t stepMs = isLastStep
+                    ? _fadeTotalMs - (uint32_t)_fadeStepsDone * FADE_STEP_MS
+                    : FADE_STEP_MS;
+                pwm->fadeChannel(_pwmChannelIndex, nextDuty, stepMs);
             }
-            return true;
         }
         return false;
     }
@@ -133,7 +146,21 @@ bool RGBWWAnimatedChannel::process() {
         auto* trans = static_cast<AnimTransition*>(_currentAnimation);
         PWMOutput* pwm = _rgbled->getPwmOutput();
         if (pwm != nullptr && trans->getDurationMs() > 0) {
-            pwm->fadeChannel(_pwmChannelIndex, trans->getFinalVal(), trans->getDurationMs());
+            _fadeTarget = trans->getFinalVal();
+            _fadeStartDuty = _value;
+            _fadeTotalMs = trans->getDurationMs();
+            _fadeStepsDone = 0;
+            if (_fadeTotalMs > 1000) {
+                // interruptable: break into FADE_STEP_MS segments
+                _fadeStepsTotal = (int)((_fadeTotalMs + FADE_STEP_MS - 1) / FADE_STEP_MS);
+                int firstStepDuty = _fadeStartDuty +
+                    (int)(((long long)(_fadeTarget - _fadeStartDuty)) * 1 / _fadeStepsTotal);
+                pwm->fadeChannel(_pwmChannelIndex, firstStepDuty, FADE_STEP_MS);
+            } else {
+                // short fade: single non-interruptable segment
+                _fadeStepsTotal = 1;
+                pwm->fadeChannel(_pwmChannelIndex, _fadeTarget, _fadeTotalMs);
+            }
             _hwFadeActive = true;
             return false;
         }
@@ -196,6 +223,7 @@ void RGBWWAnimatedChannel::cleanupCurrentAnimation() {
     notifyAnimationFinished(false);
 
     _isAnimationActive = false;
+    _hwFadeActive = false;  // HW fade runs to target on its own; clear flag to avoid null deref
     delete _currentAnimation;
     _currentAnimation = NULL;
     _cancelAnimation = false;
