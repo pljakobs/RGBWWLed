@@ -279,6 +279,9 @@ public:
             return pgm_read_word(&RGBWW_dim_curve[val]);
         }
     #endif
+
+    PWMOutput* getPwmOutput() { return _pwm_output; }
+
 private:
     typedef HashMap<CtrlChannel, RGBWWAnimatedChannel*> ChannelGroup;
 

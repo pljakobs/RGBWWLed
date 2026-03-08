@@ -36,6 +36,13 @@ RGBWWLed::RGBWWLed() {
     _animChannelsRaw[CtrlChannel::Blue] = new RGBWWAnimatedChannel(this);
     _animChannelsRaw[CtrlChannel::WarmWhite] = new RGBWWAnimatedChannel(this);
     _animChannelsRaw[CtrlChannel::ColdWhite] = new RGBWWAnimatedChannel(this);
+#ifdef ARCH_ESP32
+    _animChannelsRaw[CtrlChannel::Red]->setPwmChannelIndex(RGBWW_CHANNELS::RED);
+    _animChannelsRaw[CtrlChannel::Green]->setPwmChannelIndex(RGBWW_CHANNELS::GREEN);
+    _animChannelsRaw[CtrlChannel::Blue]->setPwmChannelIndex(RGBWW_CHANNELS::BLUE);
+    _animChannelsRaw[CtrlChannel::WarmWhite]->setPwmChannelIndex(RGBWW_CHANNELS::WW);
+    _animChannelsRaw[CtrlChannel::ColdWhite]->setPwmChannelIndex(RGBWW_CHANNELS::CW);
+#endif
 }
 
 RGBWWLed::~RGBWWLed() {

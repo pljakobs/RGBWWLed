@@ -10,6 +10,7 @@
 #include "RGBWWLed.h"
 #include "RGBWWLedAnimation.h"
 #include "RGBWWLedAnimationQ.h"
+#include "RGBWWLedOutput.h"
 
 RGBWWAnimatedChannel::RGBWWAnimatedChannel(RGBWWLed* rgbled) :
         _rgbled(rgbled), _animationQ(new RGBWWLedAnimationQ(RGBWW_ANIMATIONQSIZE)) {
@@ -84,6 +85,24 @@ bool RGBWWAnimatedChannel::process() {
         return false;
     }
 
+#ifdef ARCH_ESP32
+    if (_hwFadeActive) {
+        PWMOutput* pwm = _rgbled->getPwmOutput();
+        if (pwm == nullptr || !pwm->isFadingChannel(_pwmChannelIndex)) {
+            _hwFadeActive = false;
+            _value = static_cast<AnimTransition*>(_currentAnimation)->getFinalVal();
+            if (_currentAnimation->shouldRequeue()) {
+                notifyAnimationFinished(true);
+                requeueCurrentAnimation();
+            } else {
+                cleanupCurrentAnimation();
+            }
+            return true;
+        }
+        return false;
+    }
+#endif
+
     // check if we need to cancel effect
     if (_cancelAnimation) {
         cleanupCurrentAnimation();
@@ -108,6 +127,18 @@ bool RGBWWAnimatedChannel::process() {
 
     const bool finished = _currentAnimation->run();
     _value = _currentAnimation->getAnimValue();
+#ifdef ARCH_ESP32
+    if (!finished && _pwmChannelIndex >= 0 &&
+            _currentAnimation->getAnimType() == RGBWWLedAnimation::Type::Transition) {
+        auto* trans = static_cast<AnimTransition*>(_currentAnimation);
+        PWMOutput* pwm = _rgbled->getPwmOutput();
+        if (pwm != nullptr && trans->getDurationMs() > 0) {
+            pwm->fadeChannel(_pwmChannelIndex, trans->getFinalVal(), trans->getDurationMs());
+            _hwFadeActive = true;
+            return false;
+        }
+    }
+#endif
     if (finished) {
         if (_currentAnimation->shouldRequeue()) {
             notifyAnimationFinished(true);

@@ -74,6 +74,7 @@ public:
 
     void pauseAnimation();
     void continueAnimation();
+    void setPwmChannelIndex(int idx) { _pwmChannelIndex = idx; }
 
 private:
     RGBWWLed* _rgbled;
@@ -85,6 +86,8 @@ private:
 
     RGBWWLedAnimation* _currentAnimation = nullptr;
     RGBWWLedAnimationQ* _animationQ = nullptr;
+    int _pwmChannelIndex = -1;
+    bool _hwFadeActive = false;
 
     //helpers
     void notifyAnimationFinished(bool requeued);

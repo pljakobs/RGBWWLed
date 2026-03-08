@@ -40,6 +40,15 @@ PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t 
     debug_i("max duty %i", _pPwm->getMaxDuty());
 }
 
+void PWMOutput::fadeChannel(int chan, int duty_16bit, uint32_t fade_ms) {
+    const uint32_t scaledDuty = static_cast<uint32_t>(roundf(duty_16bit * _dutyRangeFactor));
+    _pPwm->fadeToValueChan(static_cast<uint8_t>(chan), scaledDuty, fade_ms);
+}
+
+bool PWMOutput::isFadingChannel(int chan) {
+    return _pPwm->isFadingChan(static_cast<uint8_t>(chan));
+}
+
 #else // ESP8266
 PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, uint16_t freq)
 {
@@ -116,6 +125,9 @@ int PWMOutput::getChannel(int chan) {
 }
 
 void PWMOutput::setChannel(int chan, int duty, bool update /* = true */) {
+#ifdef ARCH_ESP32
+    if (isFadingChannel(chan)) return;
+#endif
     const uint32 scaledDuty = uint32(roundf(duty * _dutyRangeFactor));
     //if (unsigned(scaledDuty) == _pPwm->getDutyChan(chan))
     //    return;
