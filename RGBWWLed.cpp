@@ -51,12 +51,6 @@ RGBWWLed::~RGBWWLed() {
 }
 #ifdef ARCH_ESP32
 Esp32HwPwmConfig config;
-/* ToDo: surface pwm config to application
-{
-    AppConfig::Root::Hardware hardware(*app.config);
-    config.timer.frequency = hardware.pwm_frequency;
-  */  
-
 
 void RGBWWLed::init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN,  const Esp32HwPwmConfig& config) {
     _pwm_output = new PWMOutput(redPIN, greenPIN, bluePIN, wwPIN, cwPIN, config);
