@@ -1,3 +1,7 @@
+/**
+ * @author  Peter Jakobs http://github.com/pljakobs
+ */
+
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <RGBWWLed.h>

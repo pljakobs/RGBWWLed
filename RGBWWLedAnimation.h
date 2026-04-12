@@ -125,6 +125,9 @@ public:
     virtual bool run() override;
     virtual void reset() override;
 
+    int getFinalVal() const { return _finalval; }
+    uint32_t getDurationMs() const { return static_cast<uint32_t>(_steps) * RGBWW_MINTIMEDIFF; }
+
 protected:
     int bresenham(BresenhamValues& values, int& dx, int& base, int& current);
 

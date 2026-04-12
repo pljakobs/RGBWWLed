@@ -36,6 +36,13 @@ RGBWWLed::RGBWWLed() {
     _animChannelsRaw[CtrlChannel::Blue] = new RGBWWAnimatedChannel(this);
     _animChannelsRaw[CtrlChannel::WarmWhite] = new RGBWWAnimatedChannel(this);
     _animChannelsRaw[CtrlChannel::ColdWhite] = new RGBWWAnimatedChannel(this);
+#ifdef ARCH_ESP32
+    _animChannelsRaw[CtrlChannel::Red]->setPwmChannelIndex(RGBWW_CHANNELS::RED);
+    _animChannelsRaw[CtrlChannel::Green]->setPwmChannelIndex(RGBWW_CHANNELS::GREEN);
+    _animChannelsRaw[CtrlChannel::Blue]->setPwmChannelIndex(RGBWW_CHANNELS::BLUE);
+    _animChannelsRaw[CtrlChannel::WarmWhite]->setPwmChannelIndex(RGBWW_CHANNELS::WW);
+    _animChannelsRaw[CtrlChannel::ColdWhite]->setPwmChannelIndex(RGBWW_CHANNELS::CW);
+#endif
 }
 
 RGBWWLed::~RGBWWLed() {
@@ -43,15 +50,9 @@ RGBWWLed::~RGBWWLed() {
     _pwm_output = nullptr;
 }
 #ifdef ARCH_ESP32
-Esp32HwPwmConfig config;
-/* ToDo: surface pwm config to application
-{
-    AppConfig::Root::Hardware hardware(*app.config);
-    config.timer.frequency = hardware.pwm_frequency;
-  */  
+Esp32HardwarePwm::Config config;
 
-
-void RGBWWLed::init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN,  const Esp32HwPwmConfig& config) {
+void RGBWWLed::init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN,  const Esp32HardwarePwm::Config& config) {
     _pwm_output = new PWMOutput(redPIN, greenPIN, bluePIN, wwPIN, cwPIN, config);
 }
 #else

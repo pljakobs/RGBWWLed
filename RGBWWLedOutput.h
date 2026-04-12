@@ -26,7 +26,7 @@ class PWMOutput {
 public:
 #ifdef ARCH_ESP32
     PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, uint16_t freq = 2000);
-    PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, const Esp32HwPwmConfig& config);
+    PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, const Esp32HardwarePwm::Config& config);
 #else 
     PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, uint16_t freq = 200);
 #endif
@@ -47,10 +47,15 @@ public:
     int getChannel(int chan);
     void setChannel(int channel, int duty, bool update = true);
 
+    #ifdef ARCH_ESP32
+    void fadeChannel(int chan, int duty_16bit, uint32_t fade_ms);
+    bool isFadingChannel(int chan);
+#endif
+
 private:
     int parseDuty(int duty);
     float _dutyRangeFactor = 0.0f;
-    #if ARCH_ESP32
+    #ifdef ARCH_ESP32
     Esp32HardwarePwm* _pPwm;
     #else
     HardwarePWM* _pPwm;

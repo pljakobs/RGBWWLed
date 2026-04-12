@@ -20,7 +20,7 @@ PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t 
     debug_i("starting PWMoutput (ESP32, with frequency %d)", freq);
     
     // Create a default config and update the frequency
-    Esp32HwPwmConfig config;
+    Esp32HardwarePwm::Config config;
     config.timer.frequency = freq;
     
     // Delegate to the config version
@@ -30,7 +30,7 @@ PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t 
     debug_i("max duty %i", _pPwm->getMaxDuty());
 }
 
-PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, const Esp32HwPwmConfig& config)
+PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, const Esp32HardwarePwm::Config& config)
 {
     debug_i("starting PWMoutput (ESP32, custom config)");
     std::vector<uint8_t> pins = { redPin, greenPin, bluePin, wwPin, cwPin };
@@ -38,6 +38,15 @@ PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t 
     _pPwm = new Esp32HardwarePwm(pins, config);
     _dutyRangeFactor = _pPwm->getMaxDuty() / 65535.0f;
     debug_i("max duty %i", _pPwm->getMaxDuty());
+}
+
+void PWMOutput::fadeChannel(int chan, int duty_16bit, uint32_t fade_ms) {
+    const uint32_t scaledDuty = static_cast<uint32_t>(roundf(duty_16bit * _dutyRangeFactor));
+    _pPwm->fadeToValueChan(static_cast<uint8_t>(chan), scaledDuty, fade_ms);
+}
+
+bool PWMOutput::isFadingChannel(int chan) {
+    return _pPwm->isFadingChan(static_cast<uint8_t>(chan));
 }
 
 #else // ESP8266
@@ -116,6 +125,9 @@ int PWMOutput::getChannel(int chan) {
 }
 
 void PWMOutput::setChannel(int chan, int duty, bool update /* = true */) {
+#ifdef ARCH_ESP32
+    if (isFadingChannel(chan)) return;
+#endif
     const uint32 scaledDuty = uint32(roundf(duty * _dutyRangeFactor));
     //if (unsigned(scaledDuty) == _pPwm->getDutyChan(chan))
     //    return;
