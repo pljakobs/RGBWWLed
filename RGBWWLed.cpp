@@ -50,9 +50,9 @@ RGBWWLed::~RGBWWLed() {
     _pwm_output = nullptr;
 }
 #ifdef ARCH_ESP32
-Esp32HwPwmConfig config;
+Esp32HardwarePwm::Config config;
 
-void RGBWWLed::init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN,  const Esp32HwPwmConfig& config) {
+void RGBWWLed::init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN,  const Esp32HardwarePwm::Config& config) {
     _pwm_output = new PWMOutput(redPIN, greenPIN, bluePIN, wwPIN, cwPIN, config);
 }
 #else

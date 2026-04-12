@@ -20,7 +20,7 @@ PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t 
     debug_i("starting PWMoutput (ESP32, with frequency %d)", freq);
     
     // Create a default config and update the frequency
-    Esp32HwPwmConfig config;
+    Esp32HardwarePwm::Config config;
     config.timer.frequency = freq;
     
     // Delegate to the config version
@@ -30,7 +30,7 @@ PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t 
     debug_i("max duty %i", _pPwm->getMaxDuty());
 }
 
-PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, const Esp32HwPwmConfig& config)
+PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, const Esp32HardwarePwm::Config& config)
 {
     debug_i("starting PWMoutput (ESP32, custom config)");
     std::vector<uint8_t> pins = { redPin, greenPin, bluePin, wwPin, cwPin };

@@ -75,7 +75,7 @@ public:
      */
     void init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN, int pwmFrequency = 200);
     #ifdef ARCH_ESP32
-    void init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN,  const Esp32HwPwmConfig& config);
+    void init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN,  const Esp32HardwarePwm::Config& config);
     #endif
     /**
      * Main function for processing animations/color output
