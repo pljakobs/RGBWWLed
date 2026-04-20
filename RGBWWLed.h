@@ -37,18 +37,19 @@
 
 #include <Arduino.h>
 #include <Wiring/WHashMap.h>
+#ifdef ARCH_ESP32
+	#include <Esp32HardwarePwm.h>
+#endif
 #include "RGBWWTypes.h"
 #include "RGBWWconst.h"
 #include "RGBWWLedColor.h"
 #include "RGBWWLedAnimation.h"
 #include "RGBWWLedOutput.h"
-
 class RGBWWLedAnimation;
 class RGBWWLedAnimationQ;
 class RGBWWColorUtils;
 class PWMOutput;
 class RGBWWAnimatedChannel;
-
 /**
  *
  */

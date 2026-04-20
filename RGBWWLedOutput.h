@@ -8,11 +8,11 @@
 #ifndef RGBWWLedOutput_h
 #define RGBWWLedOutput_h
 #include "RGBWWLed.h"
-
+/*
 #ifdef ARCH_ESP32
-    #include "../Esp32HardwarePwm/src/include/Esp32HardwarePwm.h"
+    #include <Esp32HardwarePwm.h>
 #endif
-
+*/
 #ifdef RGBWW_USE_ESP_HWPWM
 
 /*

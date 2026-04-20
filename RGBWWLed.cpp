@@ -12,10 +12,6 @@
 #include "RGBWWLedAnimationQ.h"
 #include "RGBWWLedOutput.h"
 #include <pgmspace.h>
-#ifdef ARCH_ESP32
-    #include "../Esp32HardwarePwm/src/include/Esp32HardwarePwm.h"
-#endif
-
 /**************************************************************
  *                setup, init and settings
  **************************************************************/

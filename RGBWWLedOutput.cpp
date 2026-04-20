@@ -42,7 +42,7 @@ PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t 
 
 void PWMOutput::fadeChannel(int chan, int duty_16bit, uint32_t fade_ms) {
     const uint32_t scaledDuty = static_cast<uint32_t>(roundf(duty_16bit * _dutyRangeFactor));
-    _pPwm->fadeToValueChan(static_cast<uint8_t>(chan), scaledDuty, fade_ms);
+    _pPwm->fadeChan(static_cast<uint8_t>(chan), scaledDuty, fade_ms);
 }
 
 bool PWMOutput::isFadingChannel(int chan) {
