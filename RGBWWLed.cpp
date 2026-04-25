@@ -42,6 +42,14 @@ RGBWWLed::RGBWWLed() {
 }
 
 RGBWWLed::~RGBWWLed() {
+    for (unsigned i = 0; i < _animChannelsHsv.count(); ++i) {
+        delete _animChannelsHsv.valueAt(i);
+    }
+    _animChannelsHsv.clear();
+    for (unsigned i = 0; i < _animChannelsRaw.count(); ++i) {
+        delete _animChannelsRaw.valueAt(i);
+    }
+    _animChannelsRaw.clear();
     delete _pwm_output;
     _pwm_output = nullptr;
 }
