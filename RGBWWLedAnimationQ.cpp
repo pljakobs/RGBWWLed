@@ -19,7 +19,7 @@ RGBWWLedAnimationQ::RGBWWLedAnimationQ(int qsize) {
 
 RGBWWLedAnimationQ::~RGBWWLedAnimationQ() {
     clear();
-    delete _q;
+    delete[] _q;
 }
 
 bool RGBWWLedAnimationQ::isEmpty() {
