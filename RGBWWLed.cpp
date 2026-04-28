@@ -150,10 +150,10 @@ void RGBWWLed::setOutput(RGBWCT& outputcolor) {
 }
 
 void RGBWWLed::setOutput(ChannelOutput& output) {
+    colorutils.correctBrightness(output);
+    _current_output = output;
 
     if (_pwm_output != NULL) {
-        colorutils.correctBrightness(output);
-        _current_output = output;
         //debug_i("RGBWWLed::setOutput\n  r : %i\n g : %i\n b : %i\n ww: %i\n cw: %i\n\n", output.r, output.g, output.b, output.ww, output.cw);
         _pwm_output->setOutput(getDimCurveValue(output.r), getDimCurveValue(output.g), getDimCurveValue(output.b), getDimCurveValue(output.ww),
                 getDimCurveValue(output.cw));
@@ -161,8 +161,8 @@ void RGBWWLed::setOutput(ChannelOutput& output) {
 }
 
 void RGBWWLed::setOutputRaw(int& red, int& green, int& blue, int& wwhite, int& cwhite) {
+    _current_output = ChannelOutput(red, green, blue, wwhite, cwhite);
     if (_pwm_output != NULL) {
-        _current_output = ChannelOutput(red, green, blue, wwhite, cwhite);
         _pwm_output->setOutput(red, green, blue, wwhite, cwhite);
     }
 }
