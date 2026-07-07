@@ -5,6 +5,7 @@
 #pragma once
 
 #include "RGBWWconst.h"
+#include <cstdlib>
 
 struct RampTimeOrSpeed {
     enum class Type {
@@ -44,17 +45,17 @@ public:
 
     AbsOrRelValue(String value, Type type = Type::Percent) :
             _type(type) {
-        float fval;
-        if (value.startsWith("+") || value.startsWith("-")) {
-            _mode = Mode::Relative;
-            fval = value.substring(1).toFloat();
-            if (value.startsWith("-"))
-                fval *= -1;
-        } else {
-            _mode = Mode::Absolute;
-            fval = value.toFloat();
-        }
-        setValueByType(fval);
+        parseStringInput(value.c_str());
+    }
+
+    AbsOrRelValue(const char* value, Type type = Type::Percent) :
+            _type(type) {
+        parseStringInput(value);
+    }
+
+    AbsOrRelValue(float value, Type type) :
+            _type(type) {
+        setValueByType(value);
     }
 
     AbsOrRelValue(const AbsOrRelValue& o) {
@@ -117,6 +118,25 @@ public:
     }
 
 private:
+    void parseStringInput(const char* value) {
+        float fval = 0.0f;
+        if(value != nullptr) {
+            if (value[0] == '+' || value[0] == '-') {
+                _mode = Mode::Relative;
+                fval = strtof(value + 1, nullptr);
+                if(value[0] == '-') {
+                    fval *= -1;
+                }
+            } else {
+                _mode = Mode::Absolute;
+                fval = strtof(value, nullptr);
+            }
+        } else {
+            _mode = Mode::Absolute;
+        }
+        setValueByType(fval);
+    }
+
     void setValueByType(float value) {
         switch (_type) {
         case Type::Hue:

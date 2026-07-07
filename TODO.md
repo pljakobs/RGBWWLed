@@ -6,8 +6,8 @@
 
 - ColorUtils
   - [ ] white balance calculations (preliminary interface available)
-  - [ ] implement linear HSV->RGB conversion 
-  - [ ] implement rainbow HSV->RGB conversion
+  - [x] implement linear HSV->RGB conversion 
+  - [x] implement rainbow HSV->RGB conversion
 
 - Animations
   - [ ] extend animation interface for effects (lower/faster/brighter/darker/color settings)
