@@ -227,7 +227,9 @@ void RGBWWAnimatedChannel::cleanupCurrentAnimation() {
     notifyAnimationFinished(false);
 
     _isAnimationActive = false;
+#ifdef ARCH_ESP32
     _hwFadeActive = false;  // HW fade runs to target on its own; clear flag to avoid null deref
+#endif
     delete _currentAnimation;
     _currentAnimation = NULL;
     _cancelAnimation = false;
