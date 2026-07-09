@@ -264,22 +264,23 @@ public:
         return _mode;
     }
 
-    #if RGBWW_PWMRESOLUTION == 256
-    // use bytes
-        int getDimCurveValue(int val) {
-            if (val < 0||val>=(pow(2,RGBWW_CALC_DEPTH)))
-                return 0;
-            return pgm_read_byte(&RGBWW_dim_curve[val]);
+    /* 
+
+        reading the new dim curve from the constexpr built lookup table. 
+        This is a pure C++20 style implementation that avoids any runtime overhead and is fully constexpr evaluated at compile time.
+
+    */
+    
+    int getDimCurveValue(int val) {
+        // 1. Efficient compile-time constant bounds check (0 runtime overhead for TableSize)
+        if (val < 0 || val >= static_cast<int>(TableSize)) {
+            return 0;
         }
-    #endif
-    #if RGBWW_PWMRESOLUTION == 65536
-        // use words
-        int getDimCurveValue(int val) {
-            if (val < 0 || val>=(pow(2,RGBWW_CALC_DEPTH)))
-                return 0;
-            return pgm_read_word(&RGBWW_dim_curve[val]);
-        }
-    #endif
+
+        // 2. Pure, clean C++ style variable access
+        return RGBWW_dim_curve[val];
+    }
+    
 
     PWMOutput* getPwmOutput() { return _pwm_output; }
 
