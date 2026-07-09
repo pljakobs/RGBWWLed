@@ -2,6 +2,7 @@
  * RGBWWLed - simple Library for controlling RGB WarmWhite ColdWhite LEDs via PWM
  * @file
  * @author  Patrick Jahns http://github.com/patrickjahns
+ *          Peter Jakobs    http://github.com/pljakobs
  *
  * All files of this project are provided under the LGPL v3 license.
  */
@@ -22,7 +23,7 @@
 #define RGBWW_CALC_DEPTH 8
 #endif
 
-#define RGBWW_VERSION "0.9.0"
+#define RGBWW_VERSION "0.10.0"
 #define RGBWW_CALC_WIDTH int(pow(2, RGBWW_CALC_DEPTH))
 #define RGBWW_CALC_MAXVAL int(RGBWW_CALC_WIDTH - 1)
 #define RGBWW_CALC_HUEWHEELMAX int(RGBWW_CALC_MAXVAL * 6)
@@ -79,7 +80,7 @@ constexpr TableType generate_point(int index) {
 // ==========================================
 template<typename T, size_t... Is>
 struct TableBuilder {
-    static constexpr T data[sizeof...(Is)] PROGMEM = { generate_point(Is)... };
+    static constexpr T data[sizeof...(Is)] = { generate_point(Is)... };
 };
 
 // Out-of-line storage definition required for C++14
