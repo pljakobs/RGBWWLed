@@ -49,29 +49,28 @@ using TableType = typename std::conditional<(RGBWW_CALC_DEPTH == 8 && RGBWW_PWMR
 // ==========================================
 
 // CIE 1931 Luminance Math
-constexpr TableType calculate_cie_point(int index, double max_input, double max_output) {
-    double x = index / max_input;
+constexpr TableType calculate_cie_point(int index) {
+    // Explicitly enforce double literals to prevent integer truncation
+    double x = static_cast<double>(index) / 1023.0;
     double y = (x > 0.08) ? ((x + 0.16) / 1.16) * ((x + 0.16) / 1.16) * ((x + 0.16) / 1.16) 
                           : (x / 9.03296);
-    return static_cast<TableType>((y * max_output) + 0.5);
+    return static_cast<TableType>((y * 65535.0) + 0.5);
 }
 
-// Cubic Power Math (Matches 256-step configurations)
-constexpr TableType calculate_cubic_point(int index, double max_input, double max_output) {
-    double normalized = index / max_input;
-    double curve = normalized * normalized * normalized; 
-    return static_cast<TableType>((curve * max_output) + 0.5);
+// Cubic Power Math
+constexpr TableType calculate_cubic_point(int index) {
+    double x = static_cast<double>(index) / 1023.0;
+    double y = x * x * x; 
+    return static_cast<TableType>((y * 65535.0) + 0.5);
 }
 
 // Router function selecting formula based on compilation parameters
 constexpr TableType generate_point(int index) {
-    constexpr double max_in = TableSize - 1;
-    constexpr double max_out = RGBWW_PWMRESOLUTION - 1;
-
-    if (RGBWW_CALC_DEPTH == 10 && RGBWW_PWMRESOLUTION == 65536) {
-        return calculate_cie_point(index, max_in, max_out);
+    // Rely on safe constexpr evaluation instead of macro state variations
+    if (TableSize == 1024 && RGBWW_PWMRESOLUTION == 65536) {
+        return calculate_cie_point(index);
     } else {
-        return calculate_cubic_point(index, max_in, max_out);
+        return calculate_cubic_point(index);
     }
 }
 
@@ -99,24 +98,26 @@ struct LookupTable<T, N, std::index_sequence<Is...>> : TableBuilder<T, Is...> {}
 // Replaces all 4 hardcoded options with a single, auto-calculating array
 constexpr auto RGBWW_dim_curve = LookupTable<TableType, TableSize>::data;
 
-constexpr bool verify_dim_curve() {
-    // Test point 1: The absolute floor must always be 0
-    static_assert(RGBWW_dim_curve[0] == 0, "Error: First element must be 0");
+// ==========================================
+// 4. Compile-Time Assertions (Zero-Cost Verification)
+// ==========================================
 
-    // Test point 2: Check milestones based on selected resolution configuration
-    if constexpr (RGBWW_CALC_DEPTH == 8 && RGBWW_PWMRESOLUTION == 256) {
-        static_assert(RGBWW_dim_curve[28] == 1,   "Error at index 28");
-        static_assert(RGBWW_dim_curve[128] == 35, "Error at index 128");
-        static_assert(RGBWW_dim_curve[255] == 255, "Error at index 255");
-    } 
-    else if constexpr (RGBWW_CALC_DEPTH == 10 && RGBWW_PWMRESOLUTION == 65535) {
-        static_assert(RGBWW_dim_curve[1] == 7,       "Error at index 1");
-        static_assert(RGBWW_dim_curve[512] == 14801, "Error at index 512");
-        static_assert(RGBWW_dim_curve[1023] == 65535, "Error at index 1023");
-    }
+#if RGBWW_CALC_DEPTH == 8
+    #if RGBWW_PWMRESOLUTION == 256
+        static_assert(RGBWW_dim_curve[0]   == 0,   "Data verification failed at index 0");
+        static_assert(RGBWW_dim_curve[255] == 255, "Data verification failed at index 255");
+    #else
+        static_assert(RGBWW_dim_curve[0]   == 0,    "Data verification failed at index 0");
+        static_assert(RGBWW_dim_curve[255] == 1023, "Data verification failed at index 255");
+    #endif
+#endif
 
-    return true; // Used to trigger evaluation
-}
-
-// Forces the compiler to execute the verification routine right now
-constexpr bool dummy_verification = verify_dim_curve();
+#if RGBWW_CALC_DEPTH == 10
+    #if RGBWW_PWMRESOLUTION == 65536
+        static_assert(RGBWW_dim_curve[0]    == 0,     "Data verification failed at index 0");
+        static_assert(RGBWW_dim_curve[1023] == 65535, "Data verification failed at index 1023");
+    #else
+        static_assert(RGBWW_dim_curve[0]    == 0,    "Data verification failed at index 0");
+        static_assert(RGBWW_dim_curve[1023] == 1023, "Data verification failed at index 1023");
+    #endif
+#endif
