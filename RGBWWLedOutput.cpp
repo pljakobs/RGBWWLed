@@ -14,7 +14,7 @@
  *  Provides a more stable pwm implementation compared to arduino esp
  *  framework
  */
-#ifdef ARCH_ESP32
+#if defined(ARCH_ESP32)
 PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, uint16_t freq)
 {
     debug_i("starting PWMoutput (ESP32, with frequency %d)", freq);
@@ -52,7 +52,7 @@ bool PWMOutput::isFadingChannel(int chan) {
 #else // ESP8266
 PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, uint16_t freq)
 {
-    debug_i("starting PWMoutput (ESP32, with frequency %d)", freq);
+    debug_i("starting PWMoutput (ESP8266, with frequency %d)", freq);
     
     uint8_t pins[] = { redPin, greenPin, bluePin, wwPin, cwPin };
     _pPwm = new HardwarePWM(pins, sizeof(pins));
@@ -125,7 +125,7 @@ int PWMOutput::getChannel(int chan) {
 }
 
 void PWMOutput::setChannel(int chan, int duty, bool update /* = true */) {
-#ifdef ARCH_ESP32
+#if defined(ARCH_ESP32)
     if (isFadingChannel(chan)) return;
 #endif
     const uint32 scaledDuty = uint32(roundf(duty * _dutyRangeFactor));
