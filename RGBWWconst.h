@@ -44,9 +44,17 @@
 constexpr size_t TableSize = (RGBWW_CALC_DEPTH == 8) ? 256 : 1024;
 using TableType = typename std::conditional<(RGBWW_CALC_DEPTH == 8 && RGBWW_PWMRESOLUTION == 256), uint8_t, uint16_t>::type;
 
-// ==========================================
+// =============================================
 // 1. Core Mathematical Curve Engines
-// ==========================================
+//    these may or may not be problematic
+//    when using Clang
+//    tables with 1024 elements should be fine
+//    larger tables may need to be rewritten
+//    to avoid constexpr evaluation issues
+//    also, Clang may complaint about the
+//    constexpr evaluation of constexpr math
+//    functions not being 100% accurate
+// =============================================
 
 // CIE 1931 Luminance Math
 constexpr TableType calculate_cie_point(int index) {
