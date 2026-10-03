@@ -181,15 +181,15 @@ void RGBWWLed::blink(const ChannelList& channels, int time, QueuePolicy queuePol
             _animChannelsHsv[CtrlChannel::Hue]->pushAnimation(new AnimBlink(time, this, CtrlChannel::Hue, requeue, name), queuePolicy);
     } else {
         if (channels.size() == 0 || channels.contains(CtrlChannel::WarmWhite))
-            _animChannelsHsv[CtrlChannel::WarmWhite]->pushAnimation(new AnimBlink(time, this, CtrlChannel::WarmWhite, requeue, name), queuePolicy);
+            _animChannelsRaw[CtrlChannel::WarmWhite]->pushAnimation(new AnimBlink(time, this, CtrlChannel::WarmWhite, requeue, name), queuePolicy);
         if (channels.size() == 0 || channels.contains(CtrlChannel::ColdWhite))
-            _animChannelsHsv[CtrlChannel::ColdWhite]->pushAnimation(new AnimBlink(time, this, CtrlChannel::ColdWhite, requeue, name), queuePolicy);
+            _animChannelsRaw[CtrlChannel::ColdWhite]->pushAnimation(new AnimBlink(time, this, CtrlChannel::ColdWhite, requeue, name), queuePolicy);
         if (channels.contains(CtrlChannel::Red))
-            _animChannelsHsv[CtrlChannel::Red]->pushAnimation(new AnimBlink(time, this, CtrlChannel::Red, requeue, name), queuePolicy);
+            _animChannelsRaw[CtrlChannel::Red]->pushAnimation(new AnimBlink(time, this, CtrlChannel::Red, requeue, name), queuePolicy);
         if (channels.contains(CtrlChannel::Green))
-            _animChannelsHsv[CtrlChannel::Green]->pushAnimation(new AnimBlink(time, this, CtrlChannel::Green, requeue, name), queuePolicy);
+            _animChannelsRaw[CtrlChannel::Green]->pushAnimation(new AnimBlink(time, this, CtrlChannel::Green, requeue, name), queuePolicy);
         if (channels.contains(CtrlChannel::Blue))
-            _animChannelsHsv[CtrlChannel::Blue]->pushAnimation(new AnimBlink(time, this, CtrlChannel::Blue, requeue, name), queuePolicy);
+            _animChannelsRaw[CtrlChannel::Blue]->pushAnimation(new AnimBlink(time, this, CtrlChannel::Blue, requeue, name), queuePolicy);
     }
 }
 
@@ -407,6 +407,7 @@ bool RGBWWLed::dispatchAnimation(RGBWWLedAnimation* pAnim, CtrlChannel ch, Queue
     case CtrlChannel::ColdWhite:
         return _animChannelsRaw[ch]->pushAnimation(pAnim, queuePolicy);
     default:
+        delete pAnim;
         return false;
     }
 }

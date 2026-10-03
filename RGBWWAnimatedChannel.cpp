@@ -35,11 +35,18 @@ void RGBWWAnimatedChannel::setValue(const AbsOrRelValue& val) {
     _value = val.getFinalValue(_value);
 }
 
+// Takes ownership of pAnim: it is deleted if it cannot be queued.
 bool RGBWWAnimatedChannel::pushAnimation(RGBWWLedAnimation* pAnim, QueuePolicy queuePolicy) {
+    if (pAnim == nullptr) {
+        debug_e("RGBWWAnimatedChannel::pushAnimation: animation allocation failed");
+        return false;
+    }
+
     // do not blink while blinking
     if (_currentAnimation != nullptr && (queuePolicy == QueuePolicy::Single || queuePolicy == QueuePolicy::Front || queuePolicy == QueuePolicy::FrontReset)
             && (pAnim->getAnimType() == RGBWWLedAnimation::Type::Blink && _currentAnimation->getAnimType() == RGBWWLedAnimation::Type::Blink)) {
         debug_w("Ignored blink commmand cause already blink running!");
+        delete pAnim;
         return false;
     }
 
@@ -51,8 +58,10 @@ bool RGBWWAnimatedChannel::pushAnimation(RGBWWLedAnimation* pAnim, QueuePolicy q
     if (queuePolicy != QueuePolicy::Back)
         continueAnimation();
 
-    if (_animationQ->isFull())
+    if (_animationQ->isFull()) {
+        delete pAnim;
         return false;
+    }
 
     switch (queuePolicy) {
     case QueuePolicy::Back:
@@ -75,6 +84,8 @@ bool RGBWWAnimatedChannel::pushAnimation(RGBWWLedAnimation* pAnim, QueuePolicy q
         debug_w(
                 "RGBWWAnimatedChannel::pushAnimation: Unknown queue policy: %d\n",
                 queuePolicy);
+        delete pAnim;
+        return false;
     }
 
     return true;
