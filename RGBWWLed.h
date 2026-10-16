@@ -277,8 +277,15 @@ public:
             return 0;
         }
 
-        // 2. Pure, clean C++ style variable access
+        // ESP8266 requires explicit flash reads; other Sming targets map rodata directly.
+#ifdef ARCH_ESP8266
+        if (sizeof(TableType) == sizeof(uint8_t)) {
+            return pgm_read_byte(&RGBWW_dim_curve[val]);
+        }
+        return pgm_read_word(&RGBWW_dim_curve[val]);
+#else
         return RGBWW_dim_curve[val];
+#endif
     }
     
 

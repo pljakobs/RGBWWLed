@@ -13,6 +13,8 @@
 #include <pgmspace.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <array>
+#include <utility>
 
 #ifdef SMING_VERSION
 #define RGBWW_USE_ESP_HWPWM
@@ -86,25 +88,16 @@ constexpr TableType generate_point(int index) {
 // 2. Compile-time Array Sequence Generator
 // ==========================================
 template<typename T, size_t... Is>
-struct TableBuilder {
-    static constexpr T data[sizeof...(Is)] = { generate_point(Is)... };
-};
-
-// Out-of-line storage definition required for C++14
-template<typename T, size_t... Is>
-constexpr T TableBuilder<T, Is...>::data[];
-
-template<typename T, size_t N, typename Indices = std::make_index_sequence<N>>
-struct LookupTable;
-
-template<typename T, size_t N, size_t... Is>
-struct LookupTable<T, N, std::index_sequence<Is...>> : TableBuilder<T, Is...> {};
+constexpr std::array<T, sizeof...(Is)> makeLookupTable(std::index_sequence<Is...>) {
+    return {{ generate_point(Is)... }};
+}
 
 // ==========================================
 // 3. Final Unified Interface
 // ==========================================
 // Replaces all 4 hardcoded options with a single, auto-calculating array
-constexpr auto RGBWW_dim_curve = LookupTable<TableType, TableSize>::data;
+constexpr std::array<TableType, TableSize> RGBWW_dim_curve PROGMEM =
+    makeLookupTable<TableType>(std::make_index_sequence<TableSize>{});
 
 // ==========================================
 // 4. Compile-Time Assertions (Zero-Cost Verification)
