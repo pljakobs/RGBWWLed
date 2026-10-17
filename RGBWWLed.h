@@ -37,6 +37,7 @@
 
 #include <Arduino.h>
 #include <Wiring/WHashMap.h>
+#include <array>
 #ifdef ARCH_ESP32
 	#include <Esp32HardwarePwm.h>
 #endif
@@ -75,8 +76,12 @@ public:
      * @param pwmFrequency (default 200)
      */
     void init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN, int pwmFrequency = 200);
+        void init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN, LightType lightType,
+                          int pwmFrequency = 200, RGBWW_CHANNELS singleChannel = RGBWW_CHANNELS::WW);
     #ifdef ARCH_ESP32
     void init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN,  const Esp32HardwarePwm::Config& config);
+        void init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN, LightType lightType,
+                          const Esp32HardwarePwm::Config& config, RGBWW_CHANNELS singleChannel = RGBWW_CHANNELS::WW);
     #endif
     /**
      * Main function for processing animations/color output
@@ -294,6 +299,13 @@ public:
 private:
     typedef HashMap<CtrlChannel, RGBWWAnimatedChannel*> ChannelGroup;
 
+        static constexpr size_t MAX_ANIMATION_CHANNELS = 9;
+        void clearAnimationChannels();
+        void configureAnimationChannels(LightType lightType, RGBWW_CHANNELS singleChannel);
+        RGBWWAnimatedChannel* createAnimationChannel(ChannelGroup& group, CtrlChannel channel, int pwmChannel = -1);
+        void bindAnimationChannel(ChannelGroup& group, CtrlChannel channel, RGBWWAnimatedChannel* animationChannel);
+        void ensureDefaultAnimationChannels();
+
     bool pushAnimSetAndStay(const Optional<AbsOrRelValue>& val, int time, QueuePolicy queuePolicy, CtrlChannel ch, bool requeue, const String& name);
     bool pushAnimTransition(const Optional<AbsOrRelValue>& val, const RampTimeOrSpeed& ramp, QueuePolicy queuePolicy, CtrlChannel ch, bool requeue,
             const String& name);
@@ -321,6 +333,11 @@ private:
 
     ChannelGroup _animChannelsHsv;
     ChannelGroup _animChannelsRaw;
+        std::array<RGBWWAnimatedChannel*, MAX_ANIMATION_CHANNELS> _ownedAnimationChannels{};
+        uint8_t _ownedAnimationChannelCount = 0;
+        LightType _lightType = LightType::RGBWWCW;
+        RGBWW_CHANNELS _singleChannel = RGBWW_CHANNELS::WW;
+        bool _animationChannelsConfigured = false;
 
 protected:
     ColorMode _mode = ColorMode::Hsv;

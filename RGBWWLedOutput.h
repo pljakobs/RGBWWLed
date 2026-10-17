@@ -25,10 +25,10 @@ class PWMOutput {
 
 public:
 #ifdef ARCH_ESP32
-    PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, uint16_t freq = 2000);
-    PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, const Esp32HardwarePwm::Config& config);
+    PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, uint16_t freq = 2000);
+    PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, const Esp32HardwarePwm::Config& config);
 #else 
-    PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, uint16_t freq = 200);
+    PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, uint16_t freq = 200);
 #endif
     ~PWMOutput();
 
@@ -53,8 +53,12 @@ public:
 #endif
 
 private:
+    static constexpr int UNUSED_CHANNEL = -1;
     int parseDuty(int duty);
     float _dutyRangeFactor = 0.0f;
+    int _channelMap[RGBWW_CHANNELS::NUM_CHANNELS] = {
+        UNUSED_CHANNEL, UNUSED_CHANNEL, UNUSED_CHANNEL, UNUSED_CHANNEL, UNUSED_CHANNEL
+    };
     #ifdef ARCH_ESP32
     Esp32HardwarePwm* _pPwm;
     #else
@@ -74,7 +78,7 @@ class PWMOutput
 {
 
 public:
-    PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, uint16_t freq = 200);
+    PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, uint16_t freq = 200);
 
     void setFrequency(int freq);
     int getFrequency();
@@ -91,6 +95,7 @@ public:
     void setOutput(int red, int green, int blue, int warmwhite, int coldwhite);
 
 private:
+    static constexpr int UNUSED_PIN = -1;
     int _freq;
     int _pins[RGBWW_CHANNELS::NUM_CHANNELS];
     int _duty[RGBWW_CHANNELS::NUM_CHANNELS];

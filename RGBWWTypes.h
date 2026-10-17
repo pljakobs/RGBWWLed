@@ -7,6 +7,17 @@
 #include "RGBWWconst.h"
 #include <cstdlib>
 
+enum class LightType : uint8_t {
+    RGBWWCW,
+    RGBWW,
+    RGBCW,
+    RGB,
+    WWCW,
+    WW,
+    CW,
+    SINGLE,
+};
+
 struct RampTimeOrSpeed {
     enum class Type {
         Speed, Time

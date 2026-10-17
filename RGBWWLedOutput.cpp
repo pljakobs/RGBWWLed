@@ -15,7 +15,25 @@
  *  framework
  */
 #if defined(ARCH_ESP32)
-PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, uint16_t freq)
+namespace {
+std::vector<uint8_t> collectActivePins(const int* logicalPins, int* channelMap, size_t channelCount)
+{
+    std::vector<uint8_t> pins;
+    pins.reserve(channelCount);
+    for(size_t i = 0; i < channelCount; ++i) {
+        const int pin = logicalPins[i];
+        if(pin < 0 || pin > UINT8_MAX) {
+            channelMap[i] = -1;
+            continue;
+        }
+        channelMap[i] = static_cast<int>(pins.size());
+        pins.push_back(static_cast<uint8_t>(pin));
+    }
+    return pins;
+}
+}
+
+PWMOutput::PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, uint16_t freq)
 {
     debug_i("starting PWMoutput (ESP32, with frequency %d)", freq);
     
@@ -24,45 +42,62 @@ PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t 
     config.timer.frequency = freq;
     
     // Delegate to the config version
-    std::vector<uint8_t> pins = { redPin, greenPin, bluePin, wwPin, cwPin };
-    _pPwm = new Esp32HardwarePwm(pins, config);
-    _dutyRangeFactor = _pPwm->getMaxDuty() / 65535.0f;
-    debug_i("max duty %i", _pPwm->getMaxDuty());
+    const int logicalPins[] = { redPin, greenPin, bluePin, wwPin, cwPin };
+    auto pins = collectActivePins(logicalPins, _channelMap, RGBWW_CHANNELS::NUM_CHANNELS);
+    _pPwm = pins.empty() ? nullptr : new Esp32HardwarePwm(pins, config);
+    _dutyRangeFactor = _pPwm != nullptr ? _pPwm->getMaxDuty() / 65535.0f : 0.0f;
+    debug_i("max duty %i", _pPwm != nullptr ? _pPwm->getMaxDuty() : 0);
 }
 
-PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, const Esp32HardwarePwm::Config& config)
+PWMOutput::PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, const Esp32HardwarePwm::Config& config)
 {
     debug_i("starting PWMoutput (ESP32, custom config)");
-    std::vector<uint8_t> pins = { redPin, greenPin, bluePin, wwPin, cwPin };
+    const int logicalPins[] = { redPin, greenPin, bluePin, wwPin, cwPin };
+    auto pins = collectActivePins(logicalPins, _channelMap, RGBWW_CHANNELS::NUM_CHANNELS);
 
-    _pPwm = new Esp32HardwarePwm(pins, config);
-    _dutyRangeFactor = _pPwm->getMaxDuty() / 65535.0f;
-    debug_i("max duty %i", _pPwm->getMaxDuty());
+    _pPwm = pins.empty() ? nullptr : new Esp32HardwarePwm(pins, config);
+    _dutyRangeFactor = _pPwm != nullptr ? _pPwm->getMaxDuty() / 65535.0f : 0.0f;
+    debug_i("max duty %i", _pPwm != nullptr ? _pPwm->getMaxDuty() : 0);
 }
 
 void PWMOutput::fadeChannel(int chan, int duty_16bit, uint32_t fade_ms) {
+    if (chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL || _pPwm == nullptr) return;
     const uint32_t scaledDuty = static_cast<uint32_t>(roundf(duty_16bit * _dutyRangeFactor));
-    _pPwm->fadeChan(static_cast<uint8_t>(chan), scaledDuty, fade_ms);
+    _pPwm->fadeChan(static_cast<uint8_t>(_channelMap[chan]), scaledDuty, fade_ms);
 }
 
 bool PWMOutput::isFadingChannel(int chan) {
-    return _pPwm->isFadingChan(static_cast<uint8_t>(chan));
+    return chan >= 0 && chan < RGBWW_CHANNELS::NUM_CHANNELS && _channelMap[chan] != UNUSED_CHANNEL &&
+           _pPwm != nullptr && _pPwm->isFadingChan(static_cast<uint8_t>(_channelMap[chan]));
 }
 
 #else // ESP8266
-PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, uint16_t freq)
+PWMOutput::PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, uint16_t freq)
 {
     debug_i("starting PWMoutput (ESP8266, with frequency %d)", freq);
-    
-    uint8_t pins[] = { redPin, greenPin, bluePin, wwPin, cwPin };
-    _pPwm = new HardwarePWM(pins, sizeof(pins));
+
+	const int logicalPins[] = { redPin, greenPin, bluePin, wwPin, cwPin };
+	uint8_t activePins[RGBWW_CHANNELS::NUM_CHANNELS];
+	uint8_t activePinCount = 0;
+	for(uint8_t i = 0; i < RGBWW_CHANNELS::NUM_CHANNELS; ++i) {
+		const int pin = logicalPins[i];
+		if(pin < 0 || pin >= 16) {
+			_channelMap[i] = UNUSED_CHANNEL;
+			continue;
+		}
+		_channelMap[i] = activePinCount;
+		activePins[activePinCount++] = static_cast<uint8_t>(pin);
+	}
+	_pPwm = activePinCount == 0 ? nullptr : new HardwarePWM(activePins, activePinCount);
 
     // this period calculation is meant for SDK-PWM or for newPcm when SDK_PWM_PERIOD_COMPAT_MODE is ON
     const int period = int(float(1000) / (float(freq) / float(1000)));
     debug_i("PWM period: %i", period);
-    _pPwm->setPeriod(period);
-     _dutyRangeFactor = _pPwm->getMaxDuty() / 65535.0f; // 65535 is the maximum what the linear curve will deliver
-    debug_i("max duty %i", _pPwm->getMaxDuty());
+    if(_pPwm != nullptr) {
+		_pPwm->setPeriod(period);
+	}
+    _dutyRangeFactor = _pPwm != nullptr ? _pPwm->getMaxDuty() / 65535.0f : 0.0f; // 65535 is the maximum what the linear curve will deliver
+    debug_i("max duty %i", _pPwm != nullptr ? _pPwm->getMaxDuty() : 0);
 }
 
 #endif
@@ -118,13 +153,17 @@ void PWMOutput::setOutput(int red, int green, int blue, int warmwhite, int coldw
     setWarmWhite(warmwhite, false);
     setColdWhite(coldwhite, false);
 
-    _pPwm->update();
+    if (_pPwm != nullptr) {
+        _pPwm->update();
+    }
 }
 int PWMOutput::getChannel(int chan) {
-    return _pPwm->getDutyChan(chan);
+    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL || _pPwm == nullptr) return 0;
+    return _pPwm->getDutyChan(static_cast<uint8_t>(_channelMap[chan]));
 }
 
 void PWMOutput::setChannel(int chan, int duty, bool update /* = true */) {
+    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL || _pPwm == nullptr) return;
 #if defined(ARCH_ESP32)
     if (isFadingChannel(chan)) return;
 #endif
@@ -132,7 +171,7 @@ void PWMOutput::setChannel(int chan, int duty, bool update /* = true */) {
     //if (unsigned(scaledDuty) == _pPwm->getDutyChan(chan))
     //    return;
     //debug_i("setChannel: chan=%d, duty=%d (scaled %d), update=%d", chan, duty, scaledDuty, update);
-    _pPwm->setDutyChan(chan, scaledDuty, update);
+    _pPwm->setDutyChan(static_cast<uint8_t>(_channelMap[chan]), scaledDuty, update);
 }
 #else
 
@@ -141,18 +180,18 @@ void PWMOutput::setChannel(int chan, int duty, bool update /* = true */) {
  * we fallback to the standard arduino pwm implementation
  *
  */
-PWMOutput::PWMOutput(uint8_t redPin, uint8_t greenPin, uint8_t bluePin, uint8_t wwPin, uint8_t cwPin, uint16_t freq /* = 200 */) {
+PWMOutput::PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, uint16_t freq /* = 200 */) {
 
     _pins[RGBWW_CHANNELS::RED] = redPin;
     _pins[RGBWW_CHANNELS::GREEN] = greenPin;
     _pins[RGBWW_CHANNELS::BLUE] = bluePin;
     _pins[RGBWW_CHANNELS::WW] = wwPin;
     _pins[RGBWW_CHANNELS::CW] = cwPin;
-    pinMode(redPin, OUTPUT);
-    pinMode(greenPin, OUTPUT);
-    pinMode(bluePin, OUTPUT);
-    pinMode(wwPin, OUTPUT);
-    pinMode(cwPin, OUTPUT);
+    if(redPin >= 0) pinMode(redPin, OUTPUT);
+    if(greenPin >= 0) pinMode(greenPin, OUTPUT);
+    if(bluePin >= 0) pinMode(bluePin, OUTPUT);
+    if(wwPin >= 0) pinMode(wwPin, OUTPUT);
+    if(cwPin >= 0) pinMode(cwPin, OUTPUT);
     setFrequency(freq);
     _maxduty = RGBWW_ARDUINO_MAXDUTY;
 
@@ -169,7 +208,7 @@ int PWMOutput::getFrequency() {
 
 void PWMOutput::setRed(int value, bool update /* = true */) {
     _duty[RGBWW_CHANNELS::RED] = parseDuty(value);
-    analogWrite(_pins[RGBWW_CHANNELS::RED], value);
+    if(_pins[RGBWW_CHANNELS::RED] >= 0) analogWrite(_pins[RGBWW_CHANNELS::RED], value);
 }
 
 int PWMOutput::getRed() {
@@ -178,7 +217,7 @@ int PWMOutput::getRed() {
 
 void PWMOutput::setGreen(int value, bool update /* = true */) {
     _duty[RGBWW_CHANNELS::GREEN] = parseDuty(value);
-    analogWrite(_pins[RGBWW_CHANNELS::GREEN], value);
+    if(_pins[RGBWW_CHANNELS::GREEN] >= 0) analogWrite(_pins[RGBWW_CHANNELS::GREEN], value);
 }
 
 int PWMOutput::getGreen() {
@@ -187,7 +226,7 @@ int PWMOutput::getGreen() {
 
 void PWMOutput::setBlue(int value, bool update /* = true */) {
     _duty[RGBWW_CHANNELS::BLUE] = parseDuty(value);
-    analogWrite(_pins[RGBWW_CHANNELS::BLUE], value);
+    if(_pins[RGBWW_CHANNELS::BLUE] >= 0) analogWrite(_pins[RGBWW_CHANNELS::BLUE], value);
 }
 
 int PWMOutput::getBlue() {
@@ -196,7 +235,7 @@ int PWMOutput::getBlue() {
 
 void PWMOutput::setWarmWhite(int value, bool update /* = true */) {
     _duty[RGBWW_CHANNELS::WW] = parseDuty(value);
-    analogWrite(_pins[RGBWW_CHANNELS::WW], value);
+    if(_pins[RGBWW_CHANNELS::WW] >= 0) analogWrite(_pins[RGBWW_CHANNELS::WW], value);
 }
 
 int PWMOutput::getWarmWhite() {
@@ -205,7 +244,7 @@ int PWMOutput::getWarmWhite() {
 
 void PWMOutput::setColdWhite(int value, bool update /* = true */) {
     _duty[RGBWW_CHANNELS::CW] = parseDuty(value);
-    analogWrite(_pins[RGBWW_CHANNELS::CW], value);
+    if(_pins[RGBWW_CHANNELS::CW] >= 0) analogWrite(_pins[RGBWW_CHANNELS::CW], value);
 }
 
 int PWMOutput::getColdWhite() {

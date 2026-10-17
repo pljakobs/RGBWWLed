@@ -25,7 +25,7 @@
 #define RGBWW_CALC_DEPTH 8
 #endif
 
-#define RGBWW_VERSION "0.10.1"
+#define RGBWW_VERSION "0.11.0"
 #define RGBWW_CALC_WIDTH int(pow(2, RGBWW_CALC_DEPTH))
 #define RGBWW_CALC_MAXVAL int(RGBWW_CALC_WIDTH - 1)
 #define RGBWW_CALC_HUEWHEELMAX int(RGBWW_CALC_MAXVAL * 6)
@@ -68,11 +68,20 @@ constexpr TableType calculate_cie_point(int index) {
 }
 
 // Cubic Power Math
-constexpr TableType calculate_cubic_point(int index) {
-    double x = static_cast<double>(index) / 1023.0;
-    double y = x * x * x; 
-    return static_cast<TableType>((y * 65535.0) + 0.5);
+constexpr int calculate_pwm_max_value() {
+    return RGBWW_PWMRESOLUTION == 256 ? 255
+         : RGBWW_PWMRESOLUTION == 65536 ? 65535
+                                        : RGBWW_PWMRESOLUTION;
 }
+
+constexpr TableType calculate_cubic_point(int index) {
+    double x = static_cast<double>(index) / static_cast<double>(TableSize - 1);
+    double y = x * x * x; 
+    return static_cast<TableType>((y * calculate_pwm_max_value()) + 0.5);
+}
+
+static_assert(calculate_cubic_point(TableSize - 1) == calculate_pwm_max_value(),
+              "Cubic curve must reach the configured PWM maximum");
 
 // Router function selecting formula based on compilation parameters
 constexpr TableType generate_point(int index) {
