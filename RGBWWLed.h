@@ -65,6 +65,14 @@ public:
 
     typedef Vector<CtrlChannel> ChannelList;
 
+        void getChannels(ChannelList& channels, ColorMode mode = ColorMode::Raw) const {
+                const auto& group = mode == ColorMode::Raw ? _animChannelsRaw : _animChannelsHsv;
+                channels.clear();
+                for (unsigned index = 0; index < group.count(); ++index) {
+                        channels.addElement(group.keyAt(index));
+                }
+        }
+
     /**
      * Initialize the the LED Controller
      *
