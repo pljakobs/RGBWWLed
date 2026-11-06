@@ -50,6 +50,9 @@ public:
     #ifdef ARCH_ESP32
     void fadeChannel(int chan, int duty_16bit, uint32_t fade_ms);
     bool isFadingChannel(int chan);
+    bool hasPendingCallbacks() const {
+        return _pPwm != nullptr && _pPwm->hasPendingCallbacks();
+    }
 #endif
 
 private:
