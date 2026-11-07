@@ -73,6 +73,18 @@ public:
                 }
         }
 
+        bool usesNamedRawChannels() const {
+                switch (_lightType) {
+                case LightType::RGBWWCW:
+                case LightType::RGBWW:
+                case LightType::RGBCW:
+                case LightType::RGB:
+                        return true;
+                default:
+                        return false;
+                }
+        }
+
     /**
      * Initialize the the LED Controller
      *
