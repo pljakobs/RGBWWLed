@@ -45,6 +45,14 @@
 #include "RGBWWconst.h"
 #include "RGBWWLedColor.h"
 #include "RGBWWLedAnimation.h"
+#ifdef ARCH_ESP32
+struct RGBWWPwmConfig {
+        Esp32HardwarePwm::Config primary;
+        Esp32HardwarePwm::Config secondary;
+        // Bits use RGBWW_CHANNELS values as positions; unset channels use the primary bank.
+        uint8_t secondaryChannelMask = 0;
+};
+#endif
 #include "RGBWWLedOutput.h"
 class RGBWWLedAnimation;
 class RGBWWLedAnimationQ;
@@ -102,6 +110,9 @@ public:
     void init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN,  const Esp32HardwarePwm::Config& config);
         void init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN, LightType lightType,
                           const Esp32HardwarePwm::Config& config, RGBWW_CHANNELS singleChannel = RGBWW_CHANNELS::WW);
+        void init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN, const RGBWWPwmConfig& config);
+        void init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN, LightType lightType,
+                          const RGBWWPwmConfig& config, RGBWW_CHANNELS singleChannel = RGBWW_CHANNELS::WW);
     #endif
     /**
      * Main function for processing animations/color output

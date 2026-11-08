@@ -171,6 +171,17 @@ void RGBWWLed::init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN,
 
 void RGBWWLed::init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN, LightType lightType,
                     const Esp32HardwarePwm::Config& config, RGBWW_CHANNELS singleChannel) {
+    RGBWWPwmConfig outputConfig;
+    outputConfig.primary = config;
+    init(redPIN, greenPIN, bluePIN, wwPIN, cwPIN, lightType, outputConfig, singleChannel);
+}
+
+void RGBWWLed::init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN, const RGBWWPwmConfig& config) {
+    init(redPIN, greenPIN, bluePIN, wwPIN, cwPIN, LightType::RGBWWCW, config);
+}
+
+void RGBWWLed::init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN, LightType lightType,
+                    const RGBWWPwmConfig& config, RGBWW_CHANNELS singleChannel) {
     configureAnimationChannels(lightType, singleChannel);
     delete _pwm_output;
     _pwm_output = new PWMOutput(redPIN, greenPIN, bluePIN, wwPIN, cwPIN, config);

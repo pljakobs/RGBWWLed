@@ -27,6 +27,7 @@ public:
 #ifdef ARCH_ESP32
     PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, uint16_t freq = 2000);
     PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, const Esp32HardwarePwm::Config& config);
+    PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, const RGBWWPwmConfig& config);
 #else 
     PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, uint16_t freq = 200);
 #endif
@@ -51,22 +52,25 @@ public:
     void fadeChannel(int chan, int duty_16bit, uint32_t fade_ms);
     bool isFadingChannel(int chan);
     bool hasPendingCallbacks() const {
-        return _pPwm != nullptr && _pPwm->hasPendingCallbacks();
+        return (_pPwm[0] != nullptr && _pPwm[0]->hasPendingCallbacks()) ||
+               (_pPwm[1] != nullptr && _pPwm[1]->hasPendingCallbacks());
     }
 #endif
 
 private:
     static constexpr int UNUSED_CHANNEL = -1;
     int parseDuty(int duty);
+#ifdef ARCH_ESP32
+    float _dutyRangeFactor[2] = {0.0f, 0.0f};
+    uint8_t _channelBank[RGBWW_CHANNELS::NUM_CHANNELS] = {};
+    Esp32HardwarePwm* _pPwm[2] = {nullptr, nullptr};
+#else
     float _dutyRangeFactor = 0.0f;
+    HardwarePWM* _pPwm;
+#endif
     int _channelMap[RGBWW_CHANNELS::NUM_CHANNELS] = {
         UNUSED_CHANNEL, UNUSED_CHANNEL, UNUSED_CHANNEL, UNUSED_CHANNEL, UNUSED_CHANNEL
     };
-    #ifdef ARCH_ESP32
-    Esp32HardwarePwm* _pPwm;
-    #else
-    HardwarePWM* _pPwm;
-    #endif
 };
 
 #else

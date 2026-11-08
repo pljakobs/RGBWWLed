@@ -86,10 +86,15 @@ void init()
     const auto lowSpeed = makeBankConfig(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
     const auto highSpeed = makeBankConfig(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0);
 
-    // Low-speed bank: 5-channel RGBWWCW followed by 3-channel RGB (8 total).
-    rgbwwcw.init(25, 26, 27, 32, 33, LightType::RGBWWCW, lowSpeed);
+    RGBWWPwmConfig splitRgbwwConfig;
+    splitRgbwwConfig.primary = lowSpeed;
+    splitRgbwwConfig.secondary = highSpeed;
+    splitRgbwwConfig.secondary.channelStart = LEDC_CHANNEL_0;
+    splitRgbwwConfig.secondaryChannelMask = (1U << RGBWW_CHANNELS::WW) | (1U << RGBWW_CHANNELS::CW);
+    rgbwwcw.init(25, 26, 27, 32, 33, LightType::RGBWWCW, splitRgbwwConfig);
+
     auto rgbConfig = lowSpeed;
-    rgbConfig.channelStart = LEDC_CHANNEL_5;
+    rgbConfig.channelStart = LEDC_CHANNEL_3;
     rgb.init(18, 19, 21, -1, -1, LightType::RGB, rgbConfig);
 
     // High-speed bank: 2-channel WWCW followed by one green SINGLE output.

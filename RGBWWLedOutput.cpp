@@ -16,59 +16,77 @@
  */
 #if defined(ARCH_ESP32)
 namespace {
-std::vector<uint8_t> collectActivePins(const int* logicalPins, int* channelMap, size_t channelCount)
+RGBWWPwmConfig defaultPwmConfig(uint16_t frequency)
 {
-    std::vector<uint8_t> pins;
-    pins.reserve(channelCount);
+    RGBWWPwmConfig config;
+    config.primary.timer.frequency = frequency;
+    return config;
+}
+
+RGBWWPwmConfig singleBankConfig(const Esp32HardwarePwm::Config& pwmConfig)
+{
+    RGBWWPwmConfig config;
+    config.primary = pwmConfig;
+    return config;
+}
+
+void collectActivePins(const int* logicalPins, int* channelMap, uint8_t* channelBank, size_t channelCount,
+                       uint8_t secondaryChannelMask, std::vector<uint8_t>* bankPins)
+{
     for(size_t i = 0; i < channelCount; ++i) {
         const int pin = logicalPins[i];
         if(pin < 0 || pin > UINT8_MAX) {
             channelMap[i] = -1;
             continue;
         }
-        channelMap[i] = static_cast<int>(pins.size());
-        pins.push_back(static_cast<uint8_t>(pin));
+        const uint8_t bank = (secondaryChannelMask & (1U << i)) != 0 ? 1 : 0;
+        channelBank[i] = bank;
+        channelMap[i] = static_cast<int>(bankPins[bank].size());
+        bankPins[bank].push_back(static_cast<uint8_t>(pin));
     }
-    return pins;
 }
 }
 
 PWMOutput::PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, uint16_t freq)
+    : PWMOutput(redPin, greenPin, bluePin, wwPin, cwPin, defaultPwmConfig(freq))
 {
-    debug_i("starting PWMoutput (ESP32, with frequency %d)", freq);
-    
-    // Create a default config and update the frequency
-    Esp32HardwarePwm::Config config;
-    config.timer.frequency = freq;
-    
-    // Delegate to the config version
-    const int logicalPins[] = { redPin, greenPin, bluePin, wwPin, cwPin };
-    auto pins = collectActivePins(logicalPins, _channelMap, RGBWW_CHANNELS::NUM_CHANNELS);
-    _pPwm = pins.empty() ? nullptr : new Esp32HardwarePwm(pins, config);
-    _dutyRangeFactor = _pPwm != nullptr ? _pPwm->getMaxDuty() / 65535.0f : 0.0f;
-    debug_i("max duty %i", _pPwm != nullptr ? _pPwm->getMaxDuty() : 0);
 }
 
 PWMOutput::PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, const Esp32HardwarePwm::Config& config)
+    : PWMOutput(redPin, greenPin, bluePin, wwPin, cwPin, singleBankConfig(config))
 {
-    debug_i("starting PWMoutput (ESP32, custom config)");
-    const int logicalPins[] = { redPin, greenPin, bluePin, wwPin, cwPin };
-    auto pins = collectActivePins(logicalPins, _channelMap, RGBWW_CHANNELS::NUM_CHANNELS);
+}
 
-    _pPwm = pins.empty() ? nullptr : new Esp32HardwarePwm(pins, config);
-    _dutyRangeFactor = _pPwm != nullptr ? _pPwm->getMaxDuty() / 65535.0f : 0.0f;
-    debug_i("max duty %i", _pPwm != nullptr ? _pPwm->getMaxDuty() : 0);
+PWMOutput::PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, const RGBWWPwmConfig& config)
+{
+    const int logicalPins[] = { redPin, greenPin, bluePin, wwPin, cwPin };
+    std::vector<uint8_t> bankPins[2];
+    collectActivePins(logicalPins, _channelMap, _channelBank, RGBWW_CHANNELS::NUM_CHANNELS,
+                      config.secondaryChannelMask, bankPins);
+
+    if(!bankPins[0].empty()) {
+        _pPwm[0] = new Esp32HardwarePwm(bankPins[0], config.primary);
+    }
+    if(!bankPins[1].empty()) {
+        _pPwm[1] = new Esp32HardwarePwm(bankPins[1], config.secondary);
+    }
+    for(size_t bank = 0; bank < 2; ++bank) {
+        _dutyRangeFactor[bank] = _pPwm[bank] != nullptr ? _pPwm[bank]->getMaxDuty() / 65535.0f : 0.0f;
+    }
 }
 
 void PWMOutput::fadeChannel(int chan, int duty_16bit, uint32_t fade_ms) {
-    if (chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL || _pPwm == nullptr) return;
-    const uint32_t scaledDuty = static_cast<uint32_t>(roundf(duty_16bit * _dutyRangeFactor));
-    _pPwm->fadeChan(static_cast<uint8_t>(_channelMap[chan]), scaledDuty, fade_ms);
+    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL) return;
+    const uint8_t bank = _channelBank[chan];
+    if(_pPwm[bank] == nullptr) return;
+    const uint32_t scaledDuty = static_cast<uint32_t>(roundf(duty_16bit * _dutyRangeFactor[bank]));
+    _pPwm[bank]->fadeChan(static_cast<uint8_t>(_channelMap[chan]), scaledDuty, fade_ms);
 }
 
 bool PWMOutput::isFadingChannel(int chan) {
-    return chan >= 0 && chan < RGBWW_CHANNELS::NUM_CHANNELS && _channelMap[chan] != UNUSED_CHANNEL &&
-           _pPwm != nullptr && _pPwm->isFadingChan(static_cast<uint8_t>(_channelMap[chan]));
+    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL) return false;
+    const uint8_t bank = _channelBank[chan];
+    return _pPwm[bank] != nullptr && _pPwm[bank]->isFadingChan(static_cast<uint8_t>(_channelMap[chan]));
 }
 
 #else // ESP8266
@@ -103,8 +121,15 @@ PWMOutput::PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin
 #endif
 
 PWMOutput::~PWMOutput() {
+#if defined(ARCH_ESP32)
+    delete _pPwm[0];
+    delete _pPwm[1];
+    _pPwm[0] = nullptr;
+    _pPwm[1] = nullptr;
+#else
     delete _pPwm;
     _pPwm = nullptr;
+#endif
 }
 
 void PWMOutput::setRed(int duty, bool update /* = true */) {
@@ -153,25 +178,43 @@ void PWMOutput::setOutput(int red, int green, int blue, int warmwhite, int coldw
     setWarmWhite(warmwhite, false);
     setColdWhite(coldwhite, false);
 
-    if (_pPwm != nullptr) {
-        _pPwm->update();
+#if defined(ARCH_ESP32)
+    for(auto* pwm : _pPwm) {
+        if(pwm != nullptr) pwm->update();
     }
+#else
+    if(_pPwm != nullptr) _pPwm->update();
+#endif
 }
 int PWMOutput::getChannel(int chan) {
-    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL || _pPwm == nullptr) return 0;
-    return _pPwm->getDutyChan(static_cast<uint8_t>(_channelMap[chan]));
+    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL) return 0;
+#if defined(ARCH_ESP32)
+    const uint8_t bank = _channelBank[chan];
+    return _pPwm[bank] != nullptr ? _pPwm[bank]->getDutyChan(static_cast<uint8_t>(_channelMap[chan])) : 0;
+#else
+    return _pPwm != nullptr ? _pPwm->getDutyChan(static_cast<uint8_t>(_channelMap[chan])) : 0;
+#endif
 }
 
 void PWMOutput::setChannel(int chan, int duty, bool update /* = true */) {
-    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL || _pPwm == nullptr) return;
+    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL) return;
 #if defined(ARCH_ESP32)
+    const uint8_t bank = _channelBank[chan];
+    if(_pPwm[bank] == nullptr) return;
     if (isFadingChannel(chan)) return;
+#else
+    if(_pPwm == nullptr) return;
 #endif
+#if defined(ARCH_ESP32)
+    const uint32 scaledDuty = uint32(roundf(duty * _dutyRangeFactor[bank]));
+    _pPwm[bank]->setDutyChan(static_cast<uint8_t>(_channelMap[chan]), scaledDuty, update);
+#else
     const uint32 scaledDuty = uint32(roundf(duty * _dutyRangeFactor));
     //if (unsigned(scaledDuty) == _pPwm->getDutyChan(chan))
     //    return;
     //debug_i("setChannel: chan=%d, duty=%d (scaled %d), update=%d", chan, duty, scaledDuty, update);
     _pPwm->setDutyChan(static_cast<uint8_t>(_channelMap[chan]), scaledDuty, update);
+#endif
 }
 #else
 
