@@ -311,6 +311,25 @@ void RGBWWLed::setOutput(ChannelOutput& output) {
     }
 }
 
+int RGBWWLed::getPwmDutyForChannel(int pwmChannel, int value) const {
+    ChannelOutput output(0, 0, 0, 0, 0);
+    switch (pwmChannel) {
+    case RGBWW_CHANNELS::RED: output.r = value; break;
+    case RGBWW_CHANNELS::GREEN: output.g = value; break;
+    case RGBWW_CHANNELS::BLUE: output.b = value; break;
+    case RGBWW_CHANNELS::WW: output.ww = value; break;
+    case RGBWW_CHANNELS::CW: output.cw = value; break;
+    default: return 0;
+    }
+    colorutils.correctBrightness(output);
+    const int corrected = pwmChannel == RGBWW_CHANNELS::RED ? output.r
+                        : pwmChannel == RGBWW_CHANNELS::GREEN ? output.g
+                        : pwmChannel == RGBWW_CHANNELS::BLUE ? output.b
+                        : pwmChannel == RGBWW_CHANNELS::WW ? output.ww
+                                                           : output.cw;
+    return getDimCurveValue(corrected);
+}
+
 void RGBWWLed::setOutputRaw(int& red, int& green, int& blue, int& wwhite, int& cwhite) {
     if (_pwm_output != NULL) {
         _current_output = ChannelOutput(red, green, blue, wwhite, cwhite);
