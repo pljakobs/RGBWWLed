@@ -307,7 +307,7 @@ public:
 
     */
     
-    int getDimCurveValue(int val) {
+    int getDimCurveValue(int val) const {
         // 1. Efficient compile-time constant bounds check (0 runtime overhead for TableSize)
         if (val < 0 || val >= static_cast<int>(TableSize)) {
             return 0;
@@ -326,6 +326,12 @@ public:
     
 
     PWMOutput* getPwmOutput() { return _pwm_output; }
+
+    /**
+     * Map a logical channel value (0..RGBWW_CALC_MAXVAL) to the 16-bit output duty
+     * that setOutput() would produce (brightness correction + dim curve).
+     */
+    int getPwmDutyForChannel(int pwmChannel, int value) const;
 
 private:
     typedef HashMap<CtrlChannel, RGBWWAnimatedChannel*> ChannelGroup;

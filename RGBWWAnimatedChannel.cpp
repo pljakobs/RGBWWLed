@@ -16,6 +16,8 @@
 #include "RGBWWLedAnimationQ.h"
 #include "RGBWWLedOutput.h"
 
+#include <algorithm>
+
 RGBWWAnimatedChannel::RGBWWAnimatedChannel(RGBWWLed* rgbled) :
         _rgbled(rgbled), _animationQ(new RGBWWLedAnimationQ(RGBWW_ANIMATIONQSIZE)) {
 }
@@ -124,8 +126,12 @@ bool RGBWWAnimatedChannel::process() {
                 uint32_t stepMs = isLastStep
                     ? _fadeTotalMs - (uint32_t)_fadeStepsDone * FADE_STEP_MS
                     : FADE_STEP_MS;
-                pwm->fadeChannel(_pwmChannelIndex, nextDuty, stepMs);
+                pwm->fadeChannel(_pwmChannelIndex, _rgbled->getPwmDutyForChannel(_pwmChannelIndex, nextDuty), stepMs);
             }
+        } else {
+            // Report progress while the hardware fades; the output itself is driven by LEDC.
+            const uint32_t elapsed = std::min<uint32_t>(millis() - _fadeStartMs, _fadeTotalMs);
+            _value = _fadeStartDuty + (int)(((long long)(_fadeTarget - _fadeStartDuty)) * elapsed / _fadeTotalMs);
         }
         return false;
     }
@@ -164,17 +170,20 @@ bool RGBWWAnimatedChannel::process() {
             _fadeTarget = trans->getFinalVal();
             _fadeStartDuty = _value;
             _fadeTotalMs = trans->getDurationMs();
+            _fadeStartMs = millis();
             _fadeStepsDone = 0;
             if (_fadeTotalMs > 1000) {
                 // interruptable: break into FADE_STEP_MS segments
                 _fadeStepsTotal = (int)((_fadeTotalMs + FADE_STEP_MS - 1) / FADE_STEP_MS);
                 int firstStepDuty = _fadeStartDuty +
                     (int)(((long long)(_fadeTarget - _fadeStartDuty)) * 1 / _fadeStepsTotal);
-                pwm->fadeChannel(_pwmChannelIndex, firstStepDuty, FADE_STEP_MS);
+                pwm->fadeChannel(_pwmChannelIndex, _rgbled->getPwmDutyForChannel(_pwmChannelIndex, firstStepDuty),
+                                 FADE_STEP_MS);
             } else {
                 // short fade: single non-interruptable segment
                 _fadeStepsTotal = 1;
-                pwm->fadeChannel(_pwmChannelIndex, _fadeTarget, _fadeTotalMs);
+                pwm->fadeChannel(_pwmChannelIndex, _rgbled->getPwmDutyForChannel(_pwmChannelIndex, _fadeTarget),
+                                 _fadeTotalMs);
             }
             _hwFadeActive = true;
             return false;

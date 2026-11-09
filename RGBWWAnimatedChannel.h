@@ -98,6 +98,7 @@ private:
     int _fadeStepsTotal = 0;
     int _fadeStepsDone = 0;
     uint32_t _fadeTotalMs = 0;
+    uint32_t _fadeStartMs = 0;
     static constexpr uint32_t FADE_STEP_MS = 500;
 #endif
 
