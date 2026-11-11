@@ -17,6 +17,9 @@
 class RGBWWLed;
 class RGBWWLedAnimation;
 class RGBWWLedAnimationQ;
+#ifdef ARCH_ESP32
+class PWMOutput;
+#endif
 
 class RGBWWAnimatedChannel {
 public:
@@ -93,13 +96,12 @@ private:
     int _pwmChannelIndex = -1;
 #ifdef ARCH_ESP32
     bool _hwFadeActive = false;
+    bool _fadeCancelPending = false;
+    bool _hwFadeFailed = false;
     int _fadeTarget = 0;
     int _fadeStartDuty = 0;
-    int _fadeStepsTotal = 0;
-    int _fadeStepsDone = 0;
     uint32_t _fadeTotalMs = 0;
     uint32_t _fadeStartMs = 0;
-    static constexpr uint32_t FADE_STEP_MS = 500;
 #endif
 
     //helpers

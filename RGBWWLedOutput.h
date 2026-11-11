@@ -49,7 +49,9 @@ public:
     void setChannel(int channel, int duty, bool update = true);
 
     #ifdef ARCH_ESP32
-    void fadeChannel(int chan, int duty_16bit, uint32_t fade_ms);
+    void fadeChannel(int chan, int duty_16bit, uint32_t fade_ms, bool queue = false);
+    bool fadeChannelWithCycleLimit(int chan, int duty_16bit, uint32_t fade_ms, uint32_t maxCycles, bool queue = false);
+    void resetFadeQueue(int chan);
     bool isFadingChannel(int chan);
     bool hasPendingCallbacks() const {
         return (_pPwm[0] != nullptr && _pPwm[0]->hasPendingCallbacks()) ||

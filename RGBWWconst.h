@@ -26,6 +26,11 @@
 #endif
 
 #define RGBWW_VERSION "0.11.0"
+// Override at build time for PWM backends with a different fade-cycle limit.
+#ifndef PWM_MAX_FADE_CYCLES
+#define PWM_MAX_FADE_CYCLES 1023
+#endif
+static_assert(PWM_MAX_FADE_CYCLES > 0, "PWM_MAX_FADE_CYCLES must be greater than zero");
 #define RGBWW_CALC_WIDTH int(pow(2, RGBWW_CALC_DEPTH))
 #define RGBWW_CALC_MAXVAL int(RGBWW_CALC_WIDTH - 1)
 #define RGBWW_CALC_HUEWHEELMAX int(RGBWW_CALC_MAXVAL * 6)

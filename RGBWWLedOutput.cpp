@@ -75,12 +75,29 @@ PWMOutput::PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin
     }
 }
 
-void PWMOutput::fadeChannel(int chan, int duty_16bit, uint32_t fade_ms) {
+void PWMOutput::fadeChannel(int chan, int duty_16bit, uint32_t fade_ms, bool queue) {
     if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL) return;
     const uint8_t bank = _channelBank[chan];
     if(_pPwm[bank] == nullptr) return;
     const uint32_t scaledDuty = static_cast<uint32_t>(roundf(duty_16bit * _dutyRangeFactor[bank]));
-    _pPwm[bank]->fadeChan(static_cast<uint8_t>(_channelMap[chan]), scaledDuty, fade_ms);
+    _pPwm[bank]->fadeChan(static_cast<uint8_t>(_channelMap[chan]), scaledDuty, fade_ms, queue);
+}
+
+bool PWMOutput::fadeChannelWithCycleLimit(int chan, int duty_16bit, uint32_t fade_ms, uint32_t maxCycles, bool queue) {
+    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL) return false;
+    const uint8_t bank = _channelBank[chan];
+    if(_pPwm[bank] == nullptr) return false;
+    const uint32_t scaledDuty = static_cast<uint32_t>(roundf(duty_16bit * _dutyRangeFactor[bank]));
+    return _pPwm[bank]->fadeChanWithCycleLimit(
+        static_cast<uint8_t>(_channelMap[chan]), scaledDuty, fade_ms, maxCycles, queue);
+}
+
+void PWMOutput::resetFadeQueue(int chan) {
+    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL) return;
+    const uint8_t bank = _channelBank[chan];
+    if(_pPwm[bank] != nullptr) {
+        _pPwm[bank]->resetQueue(static_cast<uint8_t>(_channelMap[chan]));
+    }
 }
 
 bool PWMOutput::isFadingChannel(int chan) {

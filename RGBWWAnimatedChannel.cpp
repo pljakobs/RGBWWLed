@@ -105,31 +105,30 @@ bool RGBWWAnimatedChannel::process() {
 #ifdef ARCH_ESP32
     if (_hwFadeActive) {
         PWMOutput* pwm = _rgbled->getPwmOutput();
-        if (pwm == nullptr || !pwm->isFadingChannel(_pwmChannelIndex)) {
-            _fadeStepsDone++;
-            if (_fadeStepsDone >= _fadeStepsTotal) {
-                // all steps complete
-                _hwFadeActive = false;
-                _value = _fadeTarget;
-                if (_currentAnimation->shouldRequeue()) {
-                    notifyAnimationFinished(true);
-                    requeueCurrentAnimation();
-                } else {
-                    cleanupCurrentAnimation();
-                }
-                return true;
-            } else {
-                // start next step — linear interpolation toward _fadeTarget
-                int nextDuty = _fadeStartDuty +
-                    (int)(((long long)(_fadeTarget - _fadeStartDuty)) * (_fadeStepsDone + 1) / _fadeStepsTotal);
-                bool isLastStep = (_fadeStepsDone + 1 == _fadeStepsTotal);
-                uint32_t stepMs = isLastStep
-                    ? _fadeTotalMs - (uint32_t)_fadeStepsDone * FADE_STEP_MS
-                    : FADE_STEP_MS;
-                pwm->fadeChannel(_pwmChannelIndex, _rgbled->getPwmDutyForChannel(_pwmChannelIndex, nextDuty), stepMs);
+        if (_cancelAnimation && !_fadeCancelPending) {
+            if (pwm != nullptr) {
+                pwm->resetFadeQueue(_pwmChannelIndex);
             }
+            _fadeCancelPending = true;
+            _cancelAnimation = false;
+        }
+
+        if (pwm == nullptr || !pwm->isFadingChannel(_pwmChannelIndex)) {
+            if (_fadeCancelPending) {
+                cleanupCurrentAnimation();
+                return true;
+            }
+            _hwFadeActive = false;
+            _value = _fadeTarget;
+            if (_currentAnimation->shouldRequeue()) {
+                notifyAnimationFinished(true);
+                requeueCurrentAnimation();
+            } else {
+                cleanupCurrentAnimation();
+            }
+            return true;
         } else {
-            // Report progress while the hardware fades; the output itself is driven by LEDC.
+            // Report progress while the worker advances the queued fades.
             const uint32_t elapsed = std::min<uint32_t>(millis() - _fadeStartMs, _fadeTotalMs);
             _value = _fadeStartDuty + (int)(((long long)(_fadeTarget - _fadeStartDuty)) * elapsed / _fadeTotalMs);
         }
@@ -158,11 +157,10 @@ bool RGBWWAnimatedChannel::process() {
         _currentAnimation = _animationQ->pop();
         _isAnimationActive = true;
     }
-
     const bool finished = _currentAnimation->run();
     _value = _currentAnimation->getAnimValue();
 #ifdef ARCH_ESP32
-    if (!finished && _pwmChannelIndex >= 0 &&
+    if (!finished && !_hwFadeFailed && _pwmChannelIndex >= 0 &&
             _currentAnimation->getAnimType() == RGBWWLedAnimation::Type::Transition) {
         auto* trans = static_cast<AnimTransition*>(_currentAnimation);
         PWMOutput* pwm = _rgbled->getPwmOutput();
@@ -171,21 +169,14 @@ bool RGBWWAnimatedChannel::process() {
             _fadeStartDuty = _value;
             _fadeTotalMs = trans->getDurationMs();
             _fadeStartMs = millis();
-            _fadeStepsDone = 0;
-            if (_fadeTotalMs > 1000) {
-                // interruptable: break into FADE_STEP_MS segments
-                _fadeStepsTotal = (int)((_fadeTotalMs + FADE_STEP_MS - 1) / FADE_STEP_MS);
-                int firstStepDuty = _fadeStartDuty +
-                    (int)(((long long)(_fadeTarget - _fadeStartDuty)) * 1 / _fadeStepsTotal);
-                pwm->fadeChannel(_pwmChannelIndex, _rgbled->getPwmDutyForChannel(_pwmChannelIndex, firstStepDuty),
-                                 FADE_STEP_MS);
-            } else {
-                // short fade: single non-interruptable segment
-                _fadeStepsTotal = 1;
-                pwm->fadeChannel(_pwmChannelIndex, _rgbled->getPwmDutyForChannel(_pwmChannelIndex, _fadeTarget),
-                                 _fadeTotalMs);
+            _fadeCancelPending = false;
+            _hwFadeActive = pwm->fadeChannelWithCycleLimit(
+                _pwmChannelIndex, _rgbled->getPwmDutyForChannel(_pwmChannelIndex, _fadeTarget),
+                _fadeTotalMs, PWM_MAX_FADE_CYCLES);
+            if (!_hwFadeActive) {
+                _hwFadeFailed = true;
+                debug_e("RGBWWAnimatedChannel: failed to enqueue cycle-limited hardware fade");
             }
-            _hwFadeActive = true;
             return false;
         }
     }
@@ -248,7 +239,9 @@ void RGBWWAnimatedChannel::cleanupCurrentAnimation() {
 
     _isAnimationActive = false;
 #ifdef ARCH_ESP32
-    _hwFadeActive = false;  // HW fade runs to target on its own; clear flag to avoid null deref
+    _hwFadeActive = false;
+    _fadeCancelPending = false;
+    _hwFadeFailed = false;
 #endif
     delete _currentAnimation;
     _currentAnimation = NULL;
