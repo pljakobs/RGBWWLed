@@ -46,6 +46,9 @@ static_assert(PWM_MAX_FADE_CYCLES > 0, "PWM_MAX_FADE_CYCLES must be greater than
 #define RGBWW_WARMWHITEKELVIN 2700
 #define RGBWW_COLDWHITEKELVIN 6000
 
+enum RGBWW_CHANNELS {
+    RED = 0, GREEN = 1, BLUE = 2, WW = 3, CW = 4, NUM_CHANNELS = 5
+};
 
 // Determine Array Size and Return Type based on configurations
 constexpr size_t TableSize = (RGBWW_CALC_DEPTH == 8) ? 256 : 1024;

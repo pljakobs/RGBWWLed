@@ -45,14 +45,6 @@
 #include "RGBWWconst.h"
 #include "RGBWWLedColor.h"
 #include "RGBWWLedAnimation.h"
-#ifdef ARCH_ESP32
-struct RGBWWPwmConfig {
-        Esp32HardwarePwm::Config primary;
-        Esp32HardwarePwm::Config secondary;
-        // Bits use RGBWW_CHANNELS values as positions; unset channels use the primary bank.
-        uint8_t secondaryChannelMask = 0;
-};
-#endif
 #include "RGBWWLedOutput.h"
 class RGBWWLedAnimation;
 class RGBWWLedAnimationQ;
@@ -107,6 +99,9 @@ public:
         void init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN, LightType lightType,
                           int pwmFrequency = 200, RGBWW_CHANNELS singleChannel = RGBWW_CHANNELS::WW);
     #ifdef ARCH_ESP32
+        LightType getLightType() const { return _lightType; }
+        bool init(LightType lightType, const RGBWWPwmChannels& channels,
+                  RGBWW_CHANNELS singleChannel = RGBWW_CHANNELS::WW);
     void init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN,  const Esp32HardwarePwm::Config& config);
         void init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN, LightType lightType,
                           const Esp32HardwarePwm::Config& config, RGBWW_CHANNELS singleChannel = RGBWW_CHANNELS::WW);
@@ -338,7 +333,7 @@ private:
 
         static constexpr size_t MAX_ANIMATION_CHANNELS = 9;
         void clearAnimationChannels();
-        void configureAnimationChannels(LightType lightType, RGBWW_CHANNELS singleChannel);
+        bool configureAnimationChannels(LightType lightType, RGBWW_CHANNELS singleChannel);
         RGBWWAnimatedChannel* createAnimationChannel(ChannelGroup& group, CtrlChannel channel, int pwmChannel = -1);
         void bindAnimationChannel(ChannelGroup& group, CtrlChannel channel, RGBWWAnimatedChannel* animationChannel);
         void ensureDefaultAnimationChannels();
