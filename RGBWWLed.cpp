@@ -46,6 +46,10 @@ RGBWWAnimatedChannel* RGBWWLed::createAnimationChannel(ChannelGroup& group, Ctrl
     }
 
     auto* animationChannel = new RGBWWAnimatedChannel(this);
+    if(animationChannel == nullptr) {
+        debug_e("RGBWWLed: unable to allocate animation channel");
+        return nullptr;
+    }
     _ownedAnimationChannels[_ownedAnimationChannelCount++] = animationChannel;
     if (pwmChannel >= 0) {
         animationChannel->setPwmChannelIndex(pwmChannel);
@@ -60,7 +64,7 @@ void RGBWWLed::bindAnimationChannel(ChannelGroup& group, CtrlChannel channel, RG
     }
 }
 
-void RGBWWLed::configureAnimationChannels(LightType lightType, RGBWW_CHANNELS singleChannel) {
+bool RGBWWLed::configureAnimationChannels(LightType lightType, RGBWW_CHANNELS singleChannel) {
     clearAnimationChannels();
     _lightType = lightType;
     _singleChannel = singleChannel;
@@ -153,7 +157,17 @@ void RGBWWLed::configureAnimationChannels(LightType lightType, RGBWW_CHANNELS si
         break;
     }
 
+    const uint8_t expected = lightType == LightType::RGBWWCW ? 9
+                           : lightType == LightType::RGBWW || lightType == LightType::RGBCW ? 7
+                           : lightType == LightType::RGB ? 6
+                           : lightType == LightType::WWCW ? 4 : 1;
+    if(_ownedAnimationChannelCount != expected) {
+        debug_e("RGBWWLed: incomplete animation channel allocation");
+        clearAnimationChannels();
+        return false;
+    }
     _animationChannelsConfigured = true;
+    return true;
 }
 
 void RGBWWLed::ensureDefaultAnimationChannels() {
@@ -164,6 +178,52 @@ void RGBWWLed::ensureDefaultAnimationChannels() {
 
 #ifdef ARCH_ESP32
 Esp32HardwarePwm::Config config;
+
+bool RGBWWLed::init(LightType lightType, const RGBWWPwmChannels& channels, RGBWW_CHANNELS singleChannel) {
+    uint8_t expected = 0;
+    switch(lightType) {
+    case LightType::RGBWWCW: expected = 0x1f; break;
+    case LightType::RGBWW: expected = 0x0f; break;
+    case LightType::RGBCW: expected = 0x17; break;
+    case LightType::RGB: expected = 0x07; break;
+    case LightType::WWCW: expected = 0x18; break;
+    case LightType::WW: expected = 0x08; break;
+    case LightType::CW: expected = 0x10; break;
+    case LightType::SINGLE:
+        if(singleChannel < RGBWW_CHANNELS::RED || singleChannel >= RGBWW_CHANNELS::NUM_CHANNELS) {
+            debug_e("RGBWWLed: invalid SINGLE channel");
+            return false;
+        }
+        expected = 1U << singleChannel;
+        break;
+    default:
+        debug_e("RGBWWLed: invalid light type");
+        return false;
+    }
+    uint8_t actual = 0;
+    for(size_t i = 0; i < channels.size(); ++i) {
+        if(channels[i].bank != nullptr) actual |= 1U << i;
+    }
+    if(actual != expected) {
+        debug_e("RGBWWLed: borrowed channels do not match light type");
+        return false;
+    }
+    auto* output = new PWMOutput(channels);
+    if(output == nullptr || !output->isInitialized()) {
+        debug_e("RGBWWLed: borrowed PWM initialization failed");
+        delete output;
+        return false;
+    }
+    clearAnimationChannels();
+    delete _pwm_output;
+    _pwm_output = output;
+    if(!configureAnimationChannels(lightType, singleChannel)) {
+        delete _pwm_output;
+        _pwm_output = nullptr;
+        return false;
+    }
+    return true;
+}
 
 void RGBWWLed::init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN,  const Esp32HardwarePwm::Config& config) {
     init(redPIN, greenPIN, bluePIN, wwPIN, cwPIN, LightType::RGBWWCW, config);

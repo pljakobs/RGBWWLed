@@ -5,7 +5,6 @@
  *
  * All files of this project are provided under the LGPL v3 license.
  */
-#include "RGBWWLed.h"
 #include "RGBWWLedOutput.h"
 
 #ifdef RGBWW_USE_ESP_HWPWM
@@ -70,40 +69,81 @@ PWMOutput::PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin
     if(!bankPins[1].empty()) {
         _pPwm[1] = new Esp32HardwarePwm(bankPins[1], config.secondary);
     }
-    for(size_t bank = 0; bank < 2; ++bank) {
-        _dutyRangeFactor[bank] = _pPwm[bank] != nullptr ? _pPwm[bank]->getMaxDuty() / 65535.0f : 0.0f;
+    _initialized = true;
+    for(size_t i = 0; i < _bindings.size(); ++i) {
+        if(_channelMap[i] == UNUSED_CHANNEL) continue;
+        auto* bank = _pPwm[_channelBank[i]];
+        _bindings[i] = {bank, static_cast<uint8_t>(_channelMap[i])};
+        _initialized = _initialized && bank != nullptr && bank->isInitialized();
+        _dutyRangeFactor[i] = bank != nullptr ? bank->getMaxDuty() / 65535.0f : 0.0f;
     }
 }
 
+PWMOutput::PWMOutput(const RGBWWPwmChannels& channels) : _bindings(channels), _borrowed(true)
+{
+    bool active = false;
+    for(size_t i = 0; i < channels.size(); ++i) {
+        const auto& binding = channels[i];
+        if(binding.bank == nullptr) continue;
+        if(!binding.bank->isInitialized() || binding.channel >= binding.bank->getPinCount()) {
+            debug_e("PWMOutput: invalid borrowed channel %u", unsigned(i));
+            return;
+        }
+        for(size_t j = 0; j < i; ++j) {
+            if(channels[j].bank == binding.bank && channels[j].channel == binding.channel) {
+                debug_e("PWMOutput: duplicate borrowed channel %u", unsigned(i));
+                return;
+            }
+        }
+        active = true;
+        _dutyRangeFactor[i] = binding.bank->getMaxDuty() / 65535.0f;
+    }
+    if(!active) {
+        debug_e("PWMOutput: no borrowed channels");
+        return;
+    }
+    _initialized = true;
+}
+
+bool PWMOutput::hasPendingCallbacks() const
+{
+    if(!_initialized) return false;
+    for(const auto& binding : _bindings) {
+        if(binding.bank != nullptr && binding.bank->hasPendingCallbacks(binding.channel)) return true;
+    }
+    return false;
+}
+
 void PWMOutput::fadeChannel(int chan, int duty_16bit, uint32_t fade_ms, bool queue) {
-    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL) return;
-    const uint8_t bank = _channelBank[chan];
-    if(_pPwm[bank] == nullptr) return;
-    const uint32_t scaledDuty = static_cast<uint32_t>(roundf(duty_16bit * _dutyRangeFactor[bank]));
-    _pPwm[bank]->fadeChan(static_cast<uint8_t>(_channelMap[chan]), scaledDuty, fade_ms, queue);
+    if(!_initialized || chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS) return;
+    const auto& binding = _bindings[chan];
+    if(binding.bank == nullptr) return;
+    const uint32_t scaledDuty = static_cast<uint32_t>(roundf(duty_16bit * _dutyRangeFactor[chan]));
+    if(!binding.bank->fadeChan(binding.channel, scaledDuty, fade_ms, queue)) {
+        debug_e("PWMOutput: fade failed on channel %d", chan);
+    }
 }
 
 bool PWMOutput::fadeChannelWithCycleLimit(int chan, int duty_16bit, uint32_t fade_ms, uint32_t maxCycles, bool queue) {
-    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL) return false;
-    const uint8_t bank = _channelBank[chan];
-    if(_pPwm[bank] == nullptr) return false;
-    const uint32_t scaledDuty = static_cast<uint32_t>(roundf(duty_16bit * _dutyRangeFactor[bank]));
-    return _pPwm[bank]->fadeChanWithCycleLimit(
-        static_cast<uint8_t>(_channelMap[chan]), scaledDuty, fade_ms, maxCycles, queue);
+    if(!_initialized || chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS) return false;
+    const auto& binding = _bindings[chan];
+    if(binding.bank == nullptr) return false;
+    const uint32_t scaledDuty = static_cast<uint32_t>(roundf(duty_16bit * _dutyRangeFactor[chan]));
+    return binding.bank->fadeChanWithCycleLimit(binding.channel, scaledDuty, fade_ms, maxCycles, queue);
 }
 
 void PWMOutput::resetFadeQueue(int chan) {
-    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL) return;
-    const uint8_t bank = _channelBank[chan];
-    if(_pPwm[bank] != nullptr) {
-        _pPwm[bank]->resetQueue(static_cast<uint8_t>(_channelMap[chan]));
+    if(!_initialized || chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS) return;
+    const auto& binding = _bindings[chan];
+    if(binding.bank != nullptr) {
+        binding.bank->resetQueue(binding.channel);
     }
 }
 
 bool PWMOutput::isFadingChannel(int chan) {
-    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL) return false;
-    const uint8_t bank = _channelBank[chan];
-    return _pPwm[bank] != nullptr && _pPwm[bank]->isFadingChan(static_cast<uint8_t>(_channelMap[chan]));
+    if(!_initialized || chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS) return false;
+    const auto& binding = _bindings[chan];
+    return binding.bank != nullptr && binding.bank->isFadingChan(binding.channel);
 }
 
 #else // ESP8266
@@ -139,6 +179,15 @@ PWMOutput::PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin
 
 PWMOutput::~PWMOutput() {
 #if defined(ARCH_ESP32)
+    if(_borrowed && _initialized) {
+        for(const auto& binding : _bindings) {
+            if(binding.bank == nullptr) continue;
+            binding.bank->resetQueue(binding.channel);
+            if(!binding.bank->setDutyChan(binding.channel, 0)) {
+                debug_e("PWMOutput: failed to detach channel %u", unsigned(binding.channel));
+            }
+        }
+    }
     delete _pPwm[0];
     delete _pPwm[1];
     _pPwm[0] = nullptr;
@@ -196,35 +245,38 @@ void PWMOutput::setOutput(int red, int green, int blue, int warmwhite, int coldw
     setColdWhite(coldwhite, false);
 
 #if defined(ARCH_ESP32)
-    for(auto* pwm : _pPwm) {
-        if(pwm != nullptr) pwm->update();
+    if(_initialized) for(const auto& binding : _bindings) {
+        if(binding.bank != nullptr) binding.bank->updateChan(binding.channel);
     }
 #else
     if(_pPwm != nullptr) _pPwm->update();
 #endif
 }
 int PWMOutput::getChannel(int chan) {
-    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL) return 0;
+    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS) return 0;
 #if defined(ARCH_ESP32)
-    const uint8_t bank = _channelBank[chan];
-    return _pPwm[bank] != nullptr ? _pPwm[bank]->getDutyChan(static_cast<uint8_t>(_channelMap[chan])) : 0;
+    const auto& binding = _bindings[chan];
+    return _initialized && binding.bank != nullptr ? binding.bank->getDutyChan(binding.channel) : 0;
 #else
+    if(_channelMap[chan] == UNUSED_CHANNEL) return 0;
     return _pPwm != nullptr ? _pPwm->getDutyChan(static_cast<uint8_t>(_channelMap[chan])) : 0;
 #endif
 }
 
 void PWMOutput::setChannel(int chan, int duty, bool update /* = true */) {
-    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS || _channelMap[chan] == UNUSED_CHANNEL) return;
+    if(chan < 0 || chan >= RGBWW_CHANNELS::NUM_CHANNELS) return;
 #if defined(ARCH_ESP32)
-    const uint8_t bank = _channelBank[chan];
-    if(_pPwm[bank] == nullptr) return;
+    const auto& binding = _bindings[chan];
+    if(!_initialized || binding.bank == nullptr) return;
     if (isFadingChannel(chan)) return;
 #else
-    if(_pPwm == nullptr) return;
+    if(_channelMap[chan] == UNUSED_CHANNEL || _pPwm == nullptr) return;
 #endif
 #if defined(ARCH_ESP32)
-    const uint32 scaledDuty = uint32(roundf(duty * _dutyRangeFactor[bank]));
-    _pPwm[bank]->setDutyChan(static_cast<uint8_t>(_channelMap[chan]), scaledDuty, update);
+    const uint32 scaledDuty = uint32(roundf(duty * _dutyRangeFactor[chan]));
+    if(!binding.bank->setDutyChan(binding.channel, scaledDuty, update)) {
+        debug_e("PWMOutput: duty write failed on channel %d", chan);
+    }
 #else
     const uint32 scaledDuty = uint32(roundf(duty * _dutyRangeFactor));
     //if (unsigned(scaledDuty) == _pPwm->getDutyChan(chan))

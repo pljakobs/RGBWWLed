@@ -18,10 +18,6 @@ enum RGBWW_HSVMODEL {
     RAW = 0, SPEKTRUM = 1, RAINBOW = 2, NUM_HSVMODELS = 3
 };
 
-enum RGBWW_CHANNELS {
-    RED = 0, GREEN = 1, BLUE = 2, WW = 3, CW = 4, NUM_CHANNELS = 5
-};
-
 //struct for RGBW + Kelvin
 struct RGBWCT {
 

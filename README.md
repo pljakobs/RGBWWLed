@@ -14,4 +14,12 @@ Keep the release lines separate: do not merge 0.11 into 0.10. Backport only fixe
 
 The unqualified `devel` and `develop` branches are legacy names, not the targets for new release-line work.
 
+## Controller-owned ESP32 PWM
+
+Use `bool RGBWWLed::init(LightType, const RGBWWPwmChannels&, RGBWW_CHANNELS)` to bind a light to externally owned PWM banks. The five bindings are in RED/GREEN/BLUE/WW/CW order; each contains a bank pointer and its bank-local channel index. Null bindings represent unused channels. Initialization rejects mismatched profiles, invalid banks/indices and duplicate assignments.
+
+The controller must allocate distinct channels to each light and keep the banks alive until every light is destroyed. A light only updates, fades or queries its assigned channels. Destroying it cancels those channels and sets their duty to zero without destroying the banks or touching another light. Frequency, spread spectrum and phase placement belong to the controller, not the light. Existing pin/config constructors remain supported for standalone users and own their compatibility banks.
+
+Run `make -C tests/native test` with `SMING_HOME` pointing to Sming to test borrowed mappings, split banks, duty scaling, channel isolation, reassignment and legacy ownership against the HardwarePwm native mocks. Both fade-stop-capable and classic variants are covered.
+
 On ESP32, hardware fade segments are limited by `PWM_MAX_FADE_CYCLES` (default: `1023`). Define this macro at build time to override the limit when porting the hardware-fade path to a PWM backend with different constraints. Segment durations are calculated from each channel's PWM frequency and effective duty resolution; time beyond the safe hardware fade duration is preserved as a hold.

@@ -7,12 +7,23 @@
  */
 #ifndef RGBWWLedOutput_h
 #define RGBWWLedOutput_h
-#include "RGBWWLed.h"
-/*
+#include "RGBWWconst.h"
 #ifdef ARCH_ESP32
-    #include <Esp32HardwarePwm.h>
+#include <Esp32HardwarePwm.h>
+
+struct RGBWWPwmConfig {
+    Esp32HardwarePwm::Config primary;
+    Esp32HardwarePwm::Config secondary;
+    // Bits use RGBWW_CHANNELS positions; unset channels use the primary bank.
+    uint8_t secondaryChannelMask = 0;
+};
+
+struct RGBWWPwmChannel {
+    Esp32HardwarePwm* bank = nullptr;
+    uint8_t channel = 0;
+};
+using RGBWWPwmChannels = std::array<RGBWWPwmChannel, RGBWW_CHANNELS::NUM_CHANNELS>;
 #endif
-*/
 #ifdef RGBWW_USE_ESP_HWPWM
 
 /*
@@ -25,6 +36,9 @@ class PWMOutput {
 
 public:
 #ifdef ARCH_ESP32
+    explicit PWMOutput(const RGBWWPwmChannels& channels);
+    bool isInitialized() const { return _initialized; }
+    const RGBWWPwmChannels& getChannels() const { return _bindings; }
     PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, uint16_t freq = 2000);
     PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, const Esp32HardwarePwm::Config& config);
     PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, const RGBWWPwmConfig& config);
@@ -53,19 +67,19 @@ public:
     bool fadeChannelWithCycleLimit(int chan, int duty_16bit, uint32_t fade_ms, uint32_t maxCycles, bool queue = false);
     void resetFadeQueue(int chan);
     bool isFadingChannel(int chan);
-    bool hasPendingCallbacks() const {
-        return (_pPwm[0] != nullptr && _pPwm[0]->hasPendingCallbacks()) ||
-               (_pPwm[1] != nullptr && _pPwm[1]->hasPendingCallbacks());
-    }
+    bool hasPendingCallbacks() const;
 #endif
 
 private:
     static constexpr int UNUSED_CHANNEL = -1;
     int parseDuty(int duty);
 #ifdef ARCH_ESP32
-    float _dutyRangeFactor[2] = {0.0f, 0.0f};
+    float _dutyRangeFactor[RGBWW_CHANNELS::NUM_CHANNELS] = {};
     uint8_t _channelBank[RGBWW_CHANNELS::NUM_CHANNELS] = {};
     Esp32HardwarePwm* _pPwm[2] = {nullptr, nullptr};
+    RGBWWPwmChannels _bindings{};
+    bool _initialized = false;
+    bool _borrowed = false;
 #else
     float _dutyRangeFactor = 0.0f;
     HardwarePWM* _pPwm;
