@@ -414,6 +414,55 @@ static void testInterruptionAndRequeue()
     light.stopService();
 }
 
+static void testLinearRawOutput()
+{
+    Mock::now = 16000000;
+    Esp32HardwarePwm::Config config;
+    config.timer.resolution = static_cast<ledc_timer_bit_t>(11);
+    std::vector<uint8_t> pins{1};
+    Esp32HardwarePwm bank(pins, config);
+    RGBWWPwmChannels bindings{};
+    bindings[RGBWW_CHANNELS::WW] = {&bank, 0};
+    Light light;
+    assert(light.init(LightType::SINGLE, bindings));
+    light.colorutils.setBrightnessCorrection(50, 50, 50, 50, 50);
+    assert(light.startService());
+    const std::array<std::array<int, 2>, 7> samples{{
+        {0, 0}, {1, 2}, {5, 10}, {7, 14}, {8, 16}, {511, 1022}, {1023, 2047}
+    }};
+    for(const auto& sample : samples) {
+        const int value = sample[0];
+        assert(light.setRAW(raw(value)));
+        Mock::now += 20000;
+        RGBWWLedService::service();
+        assert(light.getCurrentOutput().ww == value);
+        assert(bank.getDutyChan(0) == unsigned(sample[1]));
+        assert(light.getPwmDutyForChannel(RGBWW_CHANNELS::WW, value) == light.linearPwmDuty(value));
+    }
+    assert(light.linearPwmDuty(-1) == 0);
+    assert(light.linearPwmDuty(1024) == 65535);
+    assert(light.fadeRAW(raw(0), RampTimeOrSpeed(200)));
+    Mock::now += 20000;
+    RGBWWLedService::service();
+    auto value = light.getCurrentOutput().ww;
+    assert(value > 0 && value < 1023);
+    assert(Mock::target[0][0] == unsigned(std::lround(
+        light.linearPwmDuty(value) * (bank.getMaxDuty() / 65535.0f))));
+    completeFrames();
+    RequestHSVCT hsv;
+    hsv.v = AbsOrRelValue(512);
+    assert(light.setHSV(hsv));
+    Mock::now += 20000;
+    RGBWWLedService::service();
+    ChannelOutput corrected(0, 0, 0, 512, 0);
+    light.colorutils.correctBrightness(corrected);
+    assert(light.getCurrentOutput().ww == corrected.ww);
+    assert(bank.getDutyChan(0) == unsigned(std::lround(
+        light.getDimCurveValue(corrected.ww) * (bank.getMaxDuty() / 65535.0f))));
+    light.stopService();
+    dispatch();
+}
+
 int main()
 {
     testAdvanceEquivalence();
@@ -425,5 +474,6 @@ int main()
     testManualCompatibility();
     testModeSwitchBaseline();
     testInterruptionAndRequeue();
+    testLinearRawOutput();
     std::cout << "shared animation worker, frame skipping, queue, pause and notification tests passed\n";
 }

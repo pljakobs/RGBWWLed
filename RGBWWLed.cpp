@@ -399,7 +399,7 @@ void RGBWWLed::setOutput(HSVCT& outputcolor) {
         case RGBWW_CHANNELS::WW:
         default: output.ww = outputcolor.v; break;
         }
-        setOutput(output);
+        renderOutput(output, false);
         return;
     }
 
@@ -413,20 +413,24 @@ void RGBWWLed::setOutput(RGBWCT& outputcolor) {
     //debug_i("RGBWWLed::setOuput (RGB) ct:%i\n",outputcolor.ct);
     ChannelOutput output;
     colorutils.whiteBalance(outputcolor, output);
-    setOutput(output);
+    renderOutput(output, false);
 }
 
 void RGBWWLed::setOutput(ChannelOutput& output) {
     Guard guard;
     if(!_rendering) colorDirectRAW(RequestChannelOutput(output));
+    renderOutput(output, true);
+}
 
+void RGBWWLed::renderOutput(ChannelOutput& output, bool linear) {
     if (_pwm_output != NULL) {
-        colorutils.correctBrightness(output);
+        if(!linear) colorutils.correctBrightness(output);
         _current_output = output;
-        //debug_i("RGBWWLed::setOutput\n  r : %i\n g : %i\n b : %i\n ww: %i\n cw: %i\n\n", output.r, output.g, output.b, output.ww, output.cw);
+        const auto duty = [this, linear](int value) {
+            return linear ? linearPwmDuty(value) : getDimCurveValue(value);
+        };
         const std::array<int, RGBWW_CHANNELS::NUM_CHANNELS> duties = {
-            getDimCurveValue(output.r), getDimCurveValue(output.g), getDimCurveValue(output.b),
-            getDimCurveValue(output.ww), getDimCurveValue(output.cw)};
+            duty(output.r), duty(output.g), duty(output.b), duty(output.ww), duty(output.cw)};
 #ifdef ARCH_ESP32
         if(_frameEndUs != 0) {
             _pwm_output->setFrame(duties, _frameFadeMask, _frameEndUs);
@@ -436,24 +440,15 @@ void RGBWWLed::setOutput(ChannelOutput& output) {
     }
 }
 
+int RGBWWLed::linearPwmDuty(int value) {
+    value = std::max(0, std::min(value, RGBWW_CALC_MAXVAL));
+    return (uint64_t(value) * calculate_pwm_max_value() + RGBWW_CALC_MAXVAL / 2) / RGBWW_CALC_MAXVAL;
+}
+
 int RGBWWLed::getPwmDutyForChannel(int pwmChannel, int value) const {
     Guard guard;
-    ChannelOutput output(0, 0, 0, 0, 0);
-    switch (pwmChannel) {
-    case RGBWW_CHANNELS::RED: output.r = value; break;
-    case RGBWW_CHANNELS::GREEN: output.g = value; break;
-    case RGBWW_CHANNELS::BLUE: output.b = value; break;
-    case RGBWW_CHANNELS::WW: output.ww = value; break;
-    case RGBWW_CHANNELS::CW: output.cw = value; break;
-    default: return 0;
-    }
-    colorutils.correctBrightness(output);
-    const int corrected = pwmChannel == RGBWW_CHANNELS::RED ? output.r
-                        : pwmChannel == RGBWW_CHANNELS::GREEN ? output.g
-                        : pwmChannel == RGBWW_CHANNELS::BLUE ? output.b
-                        : pwmChannel == RGBWW_CHANNELS::WW ? output.ww
-                                                           : output.cw;
-    return getDimCurveValue(corrected);
+    if(pwmChannel < 0 || pwmChannel >= RGBWW_CHANNELS::NUM_CHANNELS) return 0;
+    return linearPwmDuty(value);
 }
 
 void RGBWWLed::setOutputRaw(int& red, int& green, int& blue, int& wwhite, int& cwhite) {

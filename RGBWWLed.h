@@ -347,11 +347,13 @@ public:
 
     /**
      * Map a logical channel value (0..RGBWW_CALC_MAXVAL) to the 16-bit output duty
-     * that setOutput() would produce (brightness correction + dim curve).
+     * for RAW output, bypassing brightness correction and the dimming curve.
      */
     int getPwmDutyForChannel(int pwmChannel, int value) const;
 
 private:
+    void renderOutput(ChannelOutput& output, bool linear);
+    static int linearPwmDuty(int value);
     friend class RGBWWLedService;
     bool render(uint32_t steps = 1);
     void setMode(ColorMode mode);

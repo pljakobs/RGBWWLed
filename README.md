@@ -93,3 +93,10 @@ The native suite also exercises sixteen lights sharing one animation task,
 missed frames, queue boundaries, pause/resume, physical duty correction,
 bounded classic replacements, concurrent commands, delayed/rejected dispatch,
 teardown and manual-mode compatibility on both LEDC variants.
+
+## RAW output scale
+
+RAW solid commands and fades use linear values from 0 to 1023 on Sming builds,
+scaled to the configured hardware PWM range. They bypass the dimming curve and
+per-channel brightness correction. HSV output retains both corrections.
+The legacy `setOutputRaw` backend-duty API is unchanged.
