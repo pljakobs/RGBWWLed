@@ -146,6 +146,49 @@ bool PWMOutput::isFadingChannel(int chan) {
     return binding.bank != nullptr && binding.bank->isFadingChan(binding.channel);
 }
 
+void PWMOutput::setFrame(const std::array<int, RGBWW_CHANNELS::NUM_CHANNELS>& duties,
+                         uint8_t fadeMask, int64_t endUs)
+{
+    if(!_initialized) {
+        debug_e("PWMOutput: cannot render an uninitialized frame");
+        return;
+    }
+    for(size_t i = 0; i < _bindings.size(); ++i) {
+        const auto& binding = _bindings[i];
+        if(binding.bank == nullptr) continue;
+        auto& bank = *binding.bank;
+        const uint32_t target = std::lround(duties[i] * _dutyRangeFactor[i]);
+        const bool active = bank.isFadingChan(binding.channel);
+        if(active && (_frameTargetsValid & (1U << i)) != 0 && _frameTargets[i] == target) continue;
+        if(!active && bank.getDutyChan(binding.channel) == target) continue;
+        const uint32_t frequency = bank.getFrequency();
+        const int64_t remainingMs = (endUs - esp_timer_get_time()) / 1000;
+        // Leave one PWM cycle for rounding and fade-completion dispatch.
+        const uint32_t marginMs = frequency == 0 ? 1 : (1000 + frequency - 1) / frequency;
+        const uint32_t duration = (fadeMask & (1U << i)) != 0 && remainingMs > marginMs
+            ? static_cast<uint32_t>(remainingMs - marginMs) : 0;
+        bool ok;
+#if !SOC_LEDC_SUPPORT_FADE_STOP
+        if(active) {
+            // Classic LEDC cannot abort: retain only the latest replacement frame.
+            bank.resetQueue(binding.channel);
+            ok = bank.fadeChanWithCycleLimit(binding.channel, target, duration, PWM_MAX_FADE_CYCLES, true);
+        } else
+#endif
+        if(duration != 0) {
+            ok = bank.fadeChanWithCycleLimit(binding.channel, target, duration, PWM_MAX_FADE_CYCLES);
+        } else {
+            ok = bank.setDutyChan(binding.channel, target);
+        }
+        if(!ok) {
+            debug_e("PWMOutput: frame update failed on channel %u", unsigned(i));
+        } else {
+            _frameTargets[i] = target;
+            _frameTargetsValid |= 1U << i;
+        }
+    }
+}
+
 #else // ESP8266
 PWMOutput::PWMOutput(int redPin, int greenPin, int bluePin, int wwPin, int cwPin, uint16_t freq)
 {
@@ -238,6 +281,9 @@ int PWMOutput::getColdWhite() {
 }
 
 void PWMOutput::setOutput(int red, int green, int blue, int warmwhite, int coldwhite) {
+#ifdef ARCH_ESP32
+    _frameTargetsValid = 0;
+#endif
     setRed(red, false);
     setGreen(green, false);
     setBlue(blue, false);

@@ -68,6 +68,8 @@ public:
     void resetFadeQueue(int chan);
     bool isFadingChannel(int chan);
     bool hasPendingCallbacks() const;
+    void setFrame(const std::array<int, RGBWW_CHANNELS::NUM_CHANNELS>& duties,
+                  uint8_t fadeMask, int64_t endUs);
 #endif
 
 private:
@@ -80,6 +82,8 @@ private:
     RGBWWPwmChannels _bindings{};
     bool _initialized = false;
     bool _borrowed = false;
+    std::array<uint32_t, RGBWW_CHANNELS::NUM_CHANNELS> _frameTargets{};
+    uint8_t _frameTargetsValid = 0;
 #else
     float _dutyRangeFactor = 0.0f;
     HardwarePWM* _pPwm;

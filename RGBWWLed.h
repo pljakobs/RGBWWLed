@@ -51,6 +51,7 @@ class RGBWWLedAnimationQ;
 class RGBWWColorUtils;
 class PWMOutput;
 class RGBWWAnimatedChannel;
+class RGBWWLedService;
 /**
  *
  */
@@ -61,11 +62,32 @@ public:
     };
 
     RGBWWLed();
-    ~RGBWWLed();
+    virtual ~RGBWWLed();
+    RGBWWLed(const RGBWWLed&) = delete;
+    RGBWWLed& operator=(const RGBWWLed&) = delete;
+
+    // Also use this guard around external colorutils/PWM access during servicing.
+    class Guard {
+    public:
+        Guard();
+        ~Guard();
+        Guard(const Guard&) = delete;
+        Guard& operator=(const Guard&) = delete;
+    };
+
+#ifdef ARCH_ESP32
+    using ServiceCallback = void (*)(void*);
+    bool startService(ServiceCallback callback = nullptr, void* argument = nullptr);
+    void stopService();
+    bool isServiceRunning() const;
+    bool setServiceIntervalUs(uint32_t interval);
+    uint32_t takeServiceSteps();
+#endif
 
     typedef Vector<CtrlChannel> ChannelList;
 
         void getChannels(ChannelList& channels, ColorMode mode = ColorMode::Raw) const {
+                Guard guard;
                 const auto& group = mode == ColorMode::Raw ? _animChannelsRaw : _animChannelsHsv;
                 channels.clear();
                 for (unsigned index = 0; index < group.count(); ++index) {
@@ -74,6 +96,7 @@ public:
         }
 
         bool usesNamedRawChannels() const {
+                Guard guard;
                 switch (_lightType) {
                 case LightType::RGBWWCW:
                 case LightType::RGBWW:
@@ -99,7 +122,7 @@ public:
         void init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN, LightType lightType,
                           int pwmFrequency = 200, RGBWW_CHANNELS singleChannel = RGBWW_CHANNELS::WW);
     #ifdef ARCH_ESP32
-        LightType getLightType() const { return _lightType; }
+        LightType getLightType() const { Guard guard; return _lightType; }
         bool init(LightType lightType, const RGBWWPwmChannels& channels,
                   RGBWW_CHANNELS singleChannel = RGBWW_CHANNELS::WW);
     void init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN,  const Esp32HardwarePwm::Config& config);
@@ -110,12 +133,10 @@ public:
                           const RGBWWPwmConfig& config, RGBWW_CHANNELS singleChannel = RGBWW_CHANNELS::WW);
     #endif
     /**
-     * Main function for processing animations/color output
-     * Use this in your loop()
-     *
-     *
-     * @retval true 	not updating
-     * @retval false 	updates applied
+     * Advance animations/output in manual mode. With automatic servicing,
+     * only consume the completion flag; the worker owns advancement.
+     * @retval true at least one animation finished
+     * @retval false no animation finished
      */
     bool show();
 
@@ -166,14 +187,14 @@ public:
      *
      * @return HSVK current color
      */
-    const HSVCT& getCurrentColor() const;
+    HSVCT getCurrentColor() const;
 
     /**
      * Returns the current values for each channel
      *
      * #return ChannelOutput current value of all channels
      */
-    const ChannelOutput& getCurrentOutput() const;
+    ChannelOutput getCurrentOutput() const;
 
     /**
      * 	Output specified color
@@ -290,8 +311,10 @@ public:
     void skipAnimation(const ChannelList& channels = ChannelList());
 
     virtual void onAnimationFinished(const String& name, bool requeued);
+    void animationFinished(const String& name, bool requeued);
 
     ColorMode getMode() const {
+        Guard guard;
         return _mode;
     }
 
@@ -329,6 +352,25 @@ public:
     int getPwmDutyForChannel(int pwmChannel, int value) const;
 
 private:
+    friend class RGBWWLedService;
+    bool render(uint32_t steps = 1);
+    void setMode(ColorMode mode);
+    bool _rendering = false;
+#ifdef ARCH_ESP32
+    uint32_t _serviceId = 0;
+    uint32_t _serviceIntervalUs = RGBWW_MINTIMEDIFF_US;
+    uint32_t _serviceSteps = 0;
+    int64_t _nextFrameUs = 0;
+    int64_t _frameEndUs = 0;
+    uint8_t _frameFadeMask = 0;
+    bool _serviceFinished = false;
+    bool _frameFinished = false;
+    bool _serviceUpdated = false;
+    ServiceCallback _serviceCallback = nullptr;
+    void* _serviceArgument = nullptr;
+    HashMap<String, bool> _frameNotifications;
+    HashMap<String, bool> _notifications;
+#endif
     typedef HashMap<CtrlChannel, RGBWWAnimatedChannel*> ChannelGroup;
 
         static constexpr size_t MAX_ANIMATION_CHANNELS = 9;
@@ -353,7 +395,7 @@ private:
      */
     bool dispatchAnimation(RGBWWLedAnimation* pAnim, CtrlChannel ch, QueuePolicy queuePolicy, const ChannelList& channels = ChannelList());
 
-    bool processChannelGroup(const ChannelGroup& cg);
+    bool processChannelGroup(const ChannelGroup& cg, uint32_t steps);
     void getAnimChannelHsvColor(HSVCT& c);
     void getAnimChannelRawOutput(ChannelOutput& o);
     void callForChannels(const ChannelGroup& group, void (RGBWWAnimatedChannel::*fnc)(), const ChannelList& channels = ChannelList());

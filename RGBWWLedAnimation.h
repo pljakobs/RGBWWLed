@@ -41,6 +41,12 @@ public:
     }
     ;
 
+    virtual bool advance(uint32_t& steps) {
+        --steps;
+        return run();
+    }
+
+    void setBaseValue(int value) { _baseValue = value; _hasBaseValue = true; }
     virtual const char* toString() {
         return "<empty>";
     }
@@ -98,6 +104,8 @@ protected:
     const String _name;
     int _value = 0;
     Type _type = Type::Undefined;
+    int _baseValue = 0;
+    bool _hasBaseValue = false;
 };
 
 class AnimSetAndStay: public RGBWWLedAnimation {
@@ -105,6 +113,7 @@ public:
     AnimSetAndStay(const AbsOrRelValue& endVal, int onTime, RGBWWLed const * rgbled, CtrlChannel ch, bool requeue = false, const String& name = "");
 
     virtual bool run() override;
+    bool advance(uint32_t& steps) override;
     virtual void reset() override;
 
 private:
@@ -123,6 +132,7 @@ public:
             false, const String& name = "");
 
     virtual bool run() override;
+    bool advance(uint32_t& steps) override;
     virtual void reset() override;
 
     int getFinalVal() const { return _finalval; }
@@ -153,6 +163,7 @@ public:
             CtrlChannel ch, bool requeue = false, const String& name = "");
 
     virtual bool run() override;
+    bool advance(uint32_t& steps) override;
 
 private:
     virtual bool init() override;
@@ -165,6 +176,7 @@ public:
     AnimBlink(int blinkTime, RGBWWLed const * rgbled, CtrlChannel ch, bool requeue = false, const String& name = "");
 
     virtual bool run() override;
+    bool advance(uint32_t& steps) override;
     virtual void reset() override;
 
 private:
