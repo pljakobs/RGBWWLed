@@ -30,7 +30,8 @@ public:
      * @retval true animation finished
      * @retval false
      */
-    bool process();
+    bool process(uint32_t steps = 1, uint32_t intervalUs = 0, int64_t frameEndUs = 0);
+    bool isTransitionFrame() const { return _transitionFrame; }
 
     /**
      * Check if an animation is currently active
@@ -84,6 +85,7 @@ public:
     void setPwmChannelIndex(int idx) { _pwmChannelIndex = idx; }
 
 private:
+    friend class RGBWWLed;
     RGBWWLed* _rgbled;
     int _value = 0;
     bool _cancelAnimation = false;
@@ -94,7 +96,9 @@ private:
     RGBWWLedAnimation* _currentAnimation = nullptr;
     RGBWWLedAnimationQ* _animationQ = nullptr;
     int _pwmChannelIndex = -1;
+    bool _transitionFrame = false;
 #ifdef ARCH_ESP32
+    int64_t _notBeforeUs = 0;
     bool _hwFadeActive = false;
     bool _fadeCancelPending = false;
     bool _hwFadeFailed = false;

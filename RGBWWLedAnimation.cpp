@@ -9,12 +9,23 @@
 #include "RGBWWLedAnimation.h"
 #include "RGBWWLed.h"
 #include "RGBWWLedColor.h"
+#include <algorithm>
+
+namespace {
+void advanceSteps(uint32_t& available, int& current, int total)
+{
+    const uint32_t consumed = std::min<uint32_t>(available, std::max(total, 1) - current);
+    current += consumed;
+    available -= consumed;
+}
+}
 
 RGBWWLedAnimation::RGBWWLedAnimation(RGBWWLed const * rgbled, CtrlChannel ch, Type type, bool requeue, const String& name) :
         _rgbled(rgbled), _ctrlChannel(ch), _requeue(requeue), _name(name), _type(type) {
 }
 
 int RGBWWLedAnimation::getBaseValue() const {
+    if(_hasBaseValue) return _baseValue;
     const HSVCT& c = _rgbled->getCurrentColor();
     const ChannelOutput& o = _rgbled->getCurrentOutput();
 
@@ -60,10 +71,15 @@ AnimSetAndStay::AnimSetAndStay(const AbsOrRelValue& endVal, int onTime, RGBWWLed
 }
 
 bool AnimSetAndStay::run() {
+    uint32_t steps = 1;
+    return advance(steps);
+}
+
+bool AnimSetAndStay::advance(uint32_t& steps) {
     if (_currentstep == 0)
         init();
 
-    _currentstep += 1;
+    advanceSteps(steps, _currentstep, _steps);
     if (_steps != 0) {
         if (_currentstep < _steps) {
             return false;
@@ -128,6 +144,11 @@ bool AnimTransition::init() {
 }
 
 bool AnimTransition::run() {
+    uint32_t steps = 1;
+    return advance(steps);
+}
+
+bool AnimTransition::advance(uint32_t& steps) {
     if (_currentstep == 0) {
         if (!init()) {
             return true;
@@ -135,7 +156,7 @@ bool AnimTransition::run() {
         _currentstep = 0;
     }
 
-    _currentstep++;
+    advanceSteps(steps, _currentstep, _steps);
     if (_currentstep >= _steps) {
         // ensure that the with the last step
         // we arrive at the destination color
@@ -144,7 +165,10 @@ bool AnimTransition::run() {
     }
 
     //calculate new colors with bresenham
-    _value = bresenham(_bresenham, _steps, _baseval, _value);
+    // Closed-form equivalent of the existing Bresenham steps, including ties.
+    const int64_t count = std::min<int64_t>(_currentstep,
+        (int64_t(2) * _currentstep * _bresenham.delta + _steps - 1) / (int64_t(2) * _steps));
+    _value = _baseval + ((count * _bresenham.step) >> 8);
 
     return false;
 }
@@ -222,7 +246,12 @@ bool AnimTransitionCircularHue::init() {
 }
 
 bool AnimTransitionCircularHue::run() {
-    const bool result = AnimTransition::run();
+    uint32_t steps = 1;
+    return advance(steps);
+}
+
+bool AnimTransitionCircularHue::advance(uint32_t& steps) {
+    const bool result = AnimTransition::advance(steps);
     RGBWWColorUtils::circleHue(_value);
     return result;
 }
@@ -235,10 +264,15 @@ AnimBlink::AnimBlink(int blinkTime, RGBWWLed const * rgbled, CtrlChannel ch, boo
 }
 
 bool AnimBlink::run() {
+    uint32_t steps = 1;
+    return advance(steps);
+}
+
+bool AnimBlink::advance(uint32_t& steps) {
     if (_currentstep == 0)
         init();
 
-    _currentstep += 1;
+    advanceSteps(steps, _currentstep, _steps);
     if (_steps != 0) {
         if (_currentstep < _steps) {
             return false;

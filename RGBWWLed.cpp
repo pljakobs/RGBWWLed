@@ -24,6 +24,10 @@ RGBWWLed::RGBWWLed() {
 }
 
 RGBWWLed::~RGBWWLed() {
+    Guard guard;
+#ifdef ARCH_ESP32
+    stopService();
+#endif
     clearAnimationChannels();
     delete _pwm_output;
     _pwm_output = nullptr;
@@ -180,6 +184,7 @@ void RGBWWLed::ensureDefaultAnimationChannels() {
 Esp32HardwarePwm::Config config;
 
 bool RGBWWLed::init(LightType lightType, const RGBWWPwmChannels& channels, RGBWW_CHANNELS singleChannel) {
+    Guard guard;
     uint8_t expected = 0;
     switch(lightType) {
     case LightType::RGBWWCW: expected = 0x1f; break;
@@ -214,6 +219,7 @@ bool RGBWWLed::init(LightType lightType, const RGBWWPwmChannels& channels, RGBWW
         delete output;
         return false;
     }
+    stopService();
     clearAnimationChannels();
     delete _pwm_output;
     _pwm_output = output;
@@ -242,6 +248,8 @@ void RGBWWLed::init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN,
 
 void RGBWWLed::init(int redPIN, int greenPIN, int bluePIN, int wwPIN, int cwPIN, LightType lightType,
                     const RGBWWPwmConfig& config, RGBWW_CHANNELS singleChannel) {
+    Guard guard;
+    stopService();
     configureAnimationChannels(lightType, singleChannel);
     delete _pwm_output;
     _pwm_output = new PWMOutput(redPIN, greenPIN, bluePIN, wwPIN, cwPIN, config);
@@ -279,22 +287,56 @@ void RGBWWLed::getAnimChannelRawOutput(ChannelOutput& o) {
  *                     OUTPUT
  **************************************************************/
 
-bool RGBWWLed::processChannelGroup(const ChannelGroup& cg) {
+bool RGBWWLed::processChannelGroup(const ChannelGroup& cg, uint32_t steps) {
     bool animFinished = false;
     for (unsigned i = 0; i < cg.count(); ++i) {
         CtrlChannel ch = cg.keyAt(i);
         RGBWWAnimatedChannel* pCh = cg.valueAt(i);
-        animFinished |= pCh->process();
+#ifdef ARCH_ESP32
+        animFinished |= pCh->process(steps, _serviceIntervalUs, _frameEndUs);
+#else
+        animFinished |= pCh->process(steps);
+#endif
+#ifdef ARCH_ESP32
+        if(pCh->isTransitionFrame()) {
+            if(_mode == ColorMode::Hsv) {
+                _frameFadeMask = 0x1f;
+            } else {
+                const int index = ch == CtrlChannel::Red ? RGBWW_CHANNELS::RED
+                                : ch == CtrlChannel::Green ? RGBWW_CHANNELS::GREEN
+                                : ch == CtrlChannel::Blue ? RGBWW_CHANNELS::BLUE
+                                : ch == CtrlChannel::WarmWhite ? RGBWW_CHANNELS::WW
+                                : RGBWW_CHANNELS::CW;
+                _frameFadeMask |= 1U << index;
+            }
+        }
+#endif
     }
     return animFinished;
 }
 
 bool RGBWWLed::show() {
+    Guard guard;
+#ifdef ARCH_ESP32
+    if(_serviceId != 0) {
+        const bool finished = _serviceFinished;
+        _serviceFinished = false;
+        return finished;
+    }
+#endif
+    return render();
+}
+
+bool RGBWWLed::render(uint32_t steps) {
+    _rendering = true;
+#ifdef ARCH_ESP32
+    _frameFadeMask = 0;
+#endif
     ensureDefaultAnimationChannels();
     bool animFinished = false;
     switch (_mode) {
     case ColorMode::Hsv: {
-        animFinished |= processChannelGroup(_animChannelsHsv);
+        animFinished |= processChannelGroup(_animChannelsHsv, steps);
 
         HSVCT c;
         getAnimChannelHsvColor(c);
@@ -306,7 +348,7 @@ bool RGBWWLed::show() {
         break;
     }
     case ColorMode::Raw: {
-        animFinished |= processChannelGroup(_animChannelsRaw);
+        animFinished |= processChannelGroup(_animChannelsRaw, steps);
 
         ChannelOutput o;
         getAnimChannelRawOutput(o);
@@ -315,22 +357,35 @@ bool RGBWWLed::show() {
     }
     }
 
+    _rendering = false;
     return animFinished;
 }
 
 void RGBWWLed::refresh() {
+    Guard guard;
     setOutput(_current_color);
 }
 
-const ChannelOutput& RGBWWLed::getCurrentOutput() const {
+ChannelOutput RGBWWLed::getCurrentOutput() const {
+    Guard guard;
     return _current_output;
 }
 
-const HSVCT& RGBWWLed::getCurrentColor() const {
+HSVCT RGBWWLed::getCurrentColor() const {
+    Guard guard;
     return _current_color;
 }
 
 void RGBWWLed::setOutput(HSVCT& outputcolor) {
+    Guard guard;
+    if(!_rendering) {
+        RequestHSVCT channels;
+        channels.h = AbsOrRelValue(outputcolor.h);
+        channels.s = AbsOrRelValue(outputcolor.s);
+        channels.v = AbsOrRelValue(outputcolor.v);
+        channels.ct = AbsOrRelValue(outputcolor.ct);
+        colorDirectHSV(channels);
+    }
     //debug_i("RGBWWLed::setOuput (HSV) ct:%i\n",outputcolor.ct);
     _current_color = outputcolor;
 
@@ -354,6 +409,7 @@ void RGBWWLed::setOutput(HSVCT& outputcolor) {
 }
 
 void RGBWWLed::setOutput(RGBWCT& outputcolor) {
+    Guard guard;
     //debug_i("RGBWWLed::setOuput (RGB) ct:%i\n",outputcolor.ct);
     ChannelOutput output;
     colorutils.whiteBalance(outputcolor, output);
@@ -361,17 +417,27 @@ void RGBWWLed::setOutput(RGBWCT& outputcolor) {
 }
 
 void RGBWWLed::setOutput(ChannelOutput& output) {
+    Guard guard;
+    if(!_rendering) colorDirectRAW(RequestChannelOutput(output));
 
     if (_pwm_output != NULL) {
         colorutils.correctBrightness(output);
         _current_output = output;
         //debug_i("RGBWWLed::setOutput\n  r : %i\n g : %i\n b : %i\n ww: %i\n cw: %i\n\n", output.r, output.g, output.b, output.ww, output.cw);
-        _pwm_output->setOutput(getDimCurveValue(output.r), getDimCurveValue(output.g), getDimCurveValue(output.b), getDimCurveValue(output.ww),
-                getDimCurveValue(output.cw));
+        const std::array<int, RGBWW_CHANNELS::NUM_CHANNELS> duties = {
+            getDimCurveValue(output.r), getDimCurveValue(output.g), getDimCurveValue(output.b),
+            getDimCurveValue(output.ww), getDimCurveValue(output.cw)};
+#ifdef ARCH_ESP32
+        if(_frameEndUs != 0) {
+            _pwm_output->setFrame(duties, _frameFadeMask, _frameEndUs);
+        } else
+#endif
+        _pwm_output->setOutput(duties[0], duties[1], duties[2], duties[3], duties[4]);
     }
 }
 
 int RGBWWLed::getPwmDutyForChannel(int pwmChannel, int value) const {
+    Guard guard;
     ChannelOutput output(0, 0, 0, 0, 0);
     switch (pwmChannel) {
     case RGBWW_CHANNELS::RED: output.r = value; break;
@@ -391,6 +457,7 @@ int RGBWWLed::getPwmDutyForChannel(int pwmChannel, int value) const {
 }
 
 void RGBWWLed::setOutputRaw(int& red, int& green, int& blue, int& wwhite, int& cwhite) {
+    Guard guard;
     if (_pwm_output != NULL) {
         _current_output = ChannelOutput(red, green, blue, wwhite, cwhite);
         _pwm_output->setOutput(red, green, blue, wwhite, cwhite);
@@ -401,7 +468,18 @@ void RGBWWLed::setOutputRaw(int& red, int& green, int& blue, int& wwhite, int& c
  *                 ANIMATION/TRANSITION
  **************************************************************/
 
+void RGBWWLed::setMode(ColorMode mode) {
+    if(_mode == mode) return;
+    if(mode == ColorMode::Raw) {
+        colorDirectRAW(RequestChannelOutput(_current_output));
+    } else {
+        colorDirectHSV(RequestHSVCT(_current_color));
+    }
+    _mode = mode;
+}
+
 void RGBWWLed::blink(const ChannelList& channels, int time, QueuePolicy queuePolicy, bool requeue, const String& name) {
+    Guard guard;
     ensureDefaultAnimationChannels();
     auto addBlink = [this, time, queuePolicy, requeue, &name](ChannelGroup& group, CtrlChannel channel) {
         if (group.contains(channel)) {
@@ -430,7 +508,8 @@ bool RGBWWLed::setHSV(const RequestHSVCT& color, QueuePolicy queuePolicy, bool r
 }
 
 bool RGBWWLed::setHSV(const RequestHSVCT& color, int time, QueuePolicy queuePolicy, bool requeue, const String& name) {
-    _mode = ColorMode::Hsv;
+    Guard guard;
+    setMode(ColorMode::Hsv);
     debug_i("RGBWWLed::setHSV ct: %f\n",color.ct.hasValue() ? (float)color.ct.getValue() : -1.0f ); 
 
     bool result = true;
@@ -452,7 +531,8 @@ bool RGBWWLed::fadeHSV(const RequestHSVCT& color, const RampTimeOrSpeed& ramp, Q
 }
 
 bool RGBWWLed::fadeHSV(const RequestHSVCT& color, const RampTimeOrSpeed& ramp, int direction, QueuePolicy queuePolicy, bool requeue, const String& name) {
-    _mode = ColorMode::Hsv;
+    Guard guard;
+    setMode(ColorMode::Hsv);
 
     bool result = true;
     if (ramp.type == RampTimeOrSpeed::Type::Time && (ramp.value == 0.0 || ramp.value < RGBWW_MINTIMEDIFF)) {
@@ -471,7 +551,8 @@ bool RGBWWLed::fadeHSV(const RequestHSVCT& color, const RampTimeOrSpeed& ramp, i
 
 bool RGBWWLed::fadeHSV(const RequestHSVCT& colorFrom, const RequestHSVCT& color, const RampTimeOrSpeed& ramp, int direction, QueuePolicy queuePolicy,
         bool requeue, const String& name) {
-    _mode = ColorMode::Hsv;
+    Guard guard;
+    setMode(ColorMode::Hsv);
 
     bool result = true;
     if (ramp.type == RampTimeOrSpeed::Type::Time && (ramp.value == 0.0 || ramp.value < RGBWW_MINTIMEDIFF)) {
@@ -495,7 +576,8 @@ bool RGBWWLed::setRAW(const RequestChannelOutput& output, QueuePolicy queuePolic
 }
 
 bool RGBWWLed::setRAW(const RequestChannelOutput& output, int time, QueuePolicy queuePolicy, bool requeue, const String& name) {
-    _mode = ColorMode::Raw;
+    Guard guard;
+    setMode(ColorMode::Raw);
 
     bool result = true;
     result &= pushAnimSetAndStay(output.r,  time, queuePolicy, CtrlChannel::Red,       requeue, name);
@@ -509,7 +591,8 @@ bool RGBWWLed::setRAW(const RequestChannelOutput& output, int time, QueuePolicy 
 //// fadeRAW ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool RGBWWLed::fadeRAW(const RequestChannelOutput& output, const RampTimeOrSpeed& ramp, QueuePolicy queuePolicy, bool requeue, const String& name) {
-    _mode = ColorMode::Raw;
+    Guard guard;
+    setMode(ColorMode::Raw);
 
     bool result = true;
     if (ramp.type == RampTimeOrSpeed::Type::Time && (ramp.value == 0.0 || ramp.value < RGBWW_MINTIMEDIFF)) {
@@ -530,7 +613,8 @@ bool RGBWWLed::fadeRAW(const RequestChannelOutput& output, const RampTimeOrSpeed
 
 bool RGBWWLed::fadeRAW(const RequestChannelOutput& output_from, const RequestChannelOutput& output, const RampTimeOrSpeed& ramp, QueuePolicy queuePolicy,
         bool requeue, const String& name) {
-    _mode = ColorMode::Raw;
+    Guard guard;
+    setMode(ColorMode::Raw);
 
     bool result = true;
     if (ramp.type == RampTimeOrSpeed::Type::Time && (ramp.value == 0.0 || ramp.value < RGBWW_MINTIMEDIFF)) {
@@ -550,6 +634,7 @@ bool RGBWWLed::fadeRAW(const RequestChannelOutput& output_from, const RequestCha
 }
 
 void RGBWWLed::colorDirectHSV(const RequestHSVCT& output) {
+    Guard guard;
     ensureDefaultAnimationChannels();
     if (output.h.hasValue()) {
         if (_animChannelsHsv.contains(CtrlChannel::Hue)) _animChannelsHsv[CtrlChannel::Hue]->setValue(output.h.getValue());
@@ -566,6 +651,7 @@ void RGBWWLed::colorDirectHSV(const RequestHSVCT& output) {
 }
 
 void RGBWWLed::colorDirectRAW(const RequestChannelOutput& output) {
+    Guard guard;
     ensureDefaultAnimationChannels();
     if (output.r.hasValue()) {
         if (_animChannelsRaw.contains(CtrlChannel::Red)) _animChannelsRaw[CtrlChannel::Red]->setValue(output.r.getValue());
@@ -654,21 +740,25 @@ bool RGBWWLed::dispatchAnimation(RGBWWLedAnimation* pAnim, CtrlChannel ch, Queue
 }
 
 void RGBWWLed::clearAnimationQueue(const ChannelList& channels) {
+    Guard guard;
     callForChannels(_animChannelsHsv, &RGBWWAnimatedChannel::clearAnimationQueue, channels);
     callForChannels(_animChannelsRaw, &RGBWWAnimatedChannel::clearAnimationQueue, channels);
 }
 
 void RGBWWLed::skipAnimation(const ChannelList& channels) {
+    Guard guard;
     callForChannels(_animChannelsHsv, &RGBWWAnimatedChannel::skipAnimation, channels);
     callForChannels(_animChannelsRaw, &RGBWWAnimatedChannel::skipAnimation, channels);
 }
 
 void RGBWWLed::pauseAnimation(const ChannelList& channels) {
+    Guard guard;
     callForChannels(_animChannelsHsv, &RGBWWAnimatedChannel::pauseAnimation, channels);
     callForChannels(_animChannelsRaw, &RGBWWAnimatedChannel::pauseAnimation, channels);
 }
 
 void RGBWWLed::continueAnimation(const ChannelList& channels) {
+    Guard guard;
     callForChannels(_animChannelsHsv, &RGBWWAnimatedChannel::continueAnimation, channels);
     callForChannels(_animChannelsRaw, &RGBWWAnimatedChannel::continueAnimation, channels);
 }
@@ -684,4 +774,19 @@ void RGBWWLed::callForChannels(const ChannelGroup& group, void (RGBWWAnimatedCha
 }
 
 void RGBWWLed::onAnimationFinished(const String& name, bool requeued) {
+}
+
+void RGBWWLed::animationFinished(const String& name, bool requeued) {
+    Guard guard;
+#ifdef ARCH_ESP32
+    if(_serviceId != 0) {
+        if(_frameEndUs != 0) {
+            _frameNotifications[name] = requeued;
+        } else {
+            _notifications[name] = requeued;
+        }
+        return;
+    }
+#endif
+    onAnimationFinished(name, requeued);
 }
